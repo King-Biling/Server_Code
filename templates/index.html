@@ -1,0 +1,1995 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能小车监控系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            color: #333;
+            padding: 20px;
+        }
+
+        .container {
+            display: flex;
+            max-width: 1800px;
+            margin: 0 auto;
+            gap: 20px;
+            height: calc(100vh - 40px);
+        }
+
+        /* 坐标图区域 */
+        .coordinate-map {
+            flex: 3;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .map-header {
+            padding: 15px 20px;
+            background: #2c3e50;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .map-header h1 {
+            font-size: 20px;
+        }
+
+        #coordinateCanvas {
+            flex: 1;
+            background: #f8f9fa;
+            cursor: pointer;
+        }
+
+        /* 侧边栏 - 两列布局 */
+        .sidebar {
+            flex: 2;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            min-width: 600px;
+            max-width: 800px;
+            /* 添加整体滚动 */
+            overflow: hidden;
+        }
+
+        .sidebar-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+
+        /* 自定义滚动条 */
+        .sidebar-content::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .sidebar-content::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+
+        .sidebar-content::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 3px;
+        }
+
+        .sidebar-content::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+
+        .sidebar-columns {
+            display: flex;
+            gap: 20px;
+            flex: 1;
+            min-height: 0; /* 重要：允许内容收缩 */
+        }
+
+        .sidebar-left {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .sidebar-right {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #eee;
+            flex-shrink: 0; /* 防止头部被压缩 */
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        /* 可折叠面板 */
+        .collapsible-section {
+            margin-bottom: 15px;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            flex-shrink: 0; /* 防止面板被压缩 */
+        }
+
+        .section-header {
+            background: #2c3e50;
+            color: white;
+            padding: 12px 15px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: bold;
+            transition: background 0.3s ease;
+        }
+
+        .section-header:hover {
+            background: #34495e;
+        }
+
+        .section-header::after {
+            content: '▼';
+            font-size: 12px;
+            transition: transform 0.3s ease;
+        }
+
+        .section-header.collapsed::after {
+            transform: rotate(-90deg);
+        }
+
+        .section-content {
+            background: white;
+            padding: 0;
+            max-height: 0;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .section-content.expanded {
+            padding: 15px;
+            max-height: 1000px;
+            overflow-y: auto;
+        }
+
+        /* 小车列表 */
+        .car-list {
+            flex: 1;
+            overflow-y: auto;
+            margin-bottom: 0;
+        }
+
+        .car-item {
+            background: white;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+            border-left: 4px solid #4CAF50;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .car-item:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.12);
+        }
+
+        .car-item.disconnected {
+            border-left-color: #f56565;
+            opacity: 0.7;
+        }
+
+        .car-item.selected {
+            background: #f0f9ff;
+            border-left-color: #2196F3;
+        }
+
+        .car-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .car-id {
+            font-weight: bold;
+            font-size: 15px;
+            color: #2d3748;
+        }
+
+        .car-status {
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+
+        .status-connected {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .status-disconnected {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .car-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+            font-size: 12px;
+        }
+
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .detail-label {
+            font-size: 10px;
+            color: #718096;
+            margin-bottom: 1px;
+        }
+
+        .detail-value {
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        /* 电池样式 */
+        .battery {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .battery-level {
+            width: 30px;
+            height: 12px;
+            background: #e2e8f0;
+            border-radius: 2px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .battery-fill {
+            height: 100%;
+            background: #48bb78;
+            transition: width 0.3s ease;
+        }
+
+        .battery-low {
+            background: #f56565;
+        }
+
+        /* 控制面板 */
+        .control-panel {
+            background: white;
+            border-radius: 8px;
+            padding: 12px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+        }
+
+        .control-section {
+            margin-bottom: 12px;
+        }
+
+        .control-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .control-section h3 {
+            margin-bottom: 6px;
+            color: #4a5568;
+            font-size: 14px;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 4px;
+        }
+
+        /* 位置控制 */
+        .position-control {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+
+        .coord-input {
+            padding: 5px;
+            border: 1px solid #cbd5e0;
+            border-radius: 5px;
+            font-size: 12px;
+            width: 100%;
+        }
+
+        .action-btn {
+            width: 100%;
+            padding: 7px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 6px;
+            transition: background 0.2s ease;
+            font-size: 12px;
+        }
+
+        .action-btn:hover {
+            background: #2980b9;
+        }
+
+        /* 广播控制按钮 */
+        .broadcast-controls {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .broadcast-btn {
+            flex: 1;
+            padding: 7px;
+            border: none;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 12px;
+        }
+
+        .broadcast-on {
+            background: #48bb78;
+            color: white;
+        }
+
+        .broadcast-off {
+            background: #f56565;
+            color: white;
+        }
+
+        .broadcast-btn:hover {
+            transform: scale(1.02);
+        }
+
+        .broadcast-btn:active {
+            transform: scale(0.98);
+        }
+
+        .broadcast-btn.inactive {
+            background: #cbd5e0;
+            color: #718096;
+        }
+
+        .broadcast-status {
+            font-size: 11px;
+            color: #718096;
+            margin-top: 4px;
+            text-align: center;
+        }
+
+        /* 性能监控 */
+        .performance-info {
+            position: absolute;
+            bottom: 15px;
+            right: 15px;
+            background: rgba(255,255,255,0.9);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            z-index: 1000;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        /* 小车详情弹窗 */
+        .car-popup {
+            position: absolute;
+            background: white;
+            border-radius: 8px;
+            padding: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            max-width: 220px;
+            display: none;
+        }
+
+        .car-popup h3 {
+            margin-bottom: 6px;
+            color: #2c3e50;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 4px;
+            font-size: 14px;
+        }
+
+        .popup-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px;
+            font-size: 11px;
+        }
+
+        .popup-close {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            background: none;
+            border: none;
+            font-size: 12px;
+            cursor: pointer;
+            color: #718096;
+        }
+
+        /* 角度指示器 */
+        .angle-indicator {
+            position: absolute;
+            bottom: 15px;
+            left: 15px;
+            background: rgba(255,255,255,0.9);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            z-index: 1000;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        /* 速度显示样式 */
+        .speed-info {
+            font-size: 9px;
+            color: #4a5568;
+            line-height: 1.2;
+        }
+
+        .velocity-components {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1px;
+            font-size: 8px;
+            margin-top: 1px;
+        }
+
+        /* 拓扑矩阵样式 */
+        .topology-matrix {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 3px;
+            margin-bottom: 6px;
+        }
+
+        .matrix-header {
+            text-align: center;
+            font-weight: bold;
+            padding: 3px;
+            background: #f7fafc;
+            font-size: 10px;
+        }
+
+        .matrix-cell {
+            text-align: center;
+        }
+
+        .matrix-cell input {
+            width: 100%;
+            text-align: center;
+            font-size: 10px;
+            padding: 2px;
+        }
+
+        .visibility-info {
+            margin-top: 6px;
+            padding: 6px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            font-size: 9px;
+            line-height: 1.2;
+        }
+
+        /* 系统状态栏 */
+        .system-status {
+            margin-top: 15px;
+            padding: 8px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            font-size: 10px;
+            text-align: center;
+            color: #4a5568;
+            flex-shrink: 0; /* 防止底部状态栏被压缩 */
+        }
+
+        /* 紧凑布局调整 */
+        .compact-control {
+            padding: 8px;
+        }
+
+        .compact-control .control-section {
+            margin-bottom: 10px;
+        }
+
+        /* 两列布局中的高度控制 */
+        .scrollable-content {
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        /* 右侧控制面板的布局优化 */
+        .right-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        /* 左侧面板滚动优化 */
+        .left-panel-content {
+            flex: 1;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 坐标图区域 -->
+        <div class="coordinate-map">
+            <div class="map-header">
+                <h1>🚗实时位置观测🚗</h1>
+                <div id="coordinateRangeDisplay">坐标范围: X[-6, 6], Y[-6, 6] | 角度: 0°=X轴正方向, 逆时针增加</div>
+            </div>
+            <canvas id="coordinateCanvas"></canvas>
+            <div class="performance-info" id="performanceInfo">
+                更新频率: 300ms | 小车: <span id="carCount">0</span>
+            </div>
+            <div class="angle-indicator">
+                角度系统: 0°=X轴正向, 逆时针增加
+            </div>
+        </div>
+
+        <!-- 侧边栏 - 两列布局 -->
+        <div class="sidebar">
+            <div class="header">
+                <h1>协同控制实验系统</h1>
+            </div>
+
+            <!-- 添加滚动容器 -->
+            <div class="sidebar-content">
+                <div class="sidebar-columns">
+                    <!-- 左侧列：小车状态 -->
+                    <div class="sidebar-left">
+                        <div class="collapsible-section">
+                            <div class="section-header" onclick="toggleSection('carListSection')">
+                                小车状态监控
+                            </div>
+                            <div class="section-content expanded" id="carListSection">
+                                <div class="car-list left-panel-content" id="carList">
+                                    <div class="no-cars" style="text-align: center; color: #718096; padding: 15px;">
+                                        等待小车连接...
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- 添加编队控制 -->
+                            <div class="collapsible-section">
+                                <div class="section-header" onclick="toggleSection('formationControlSection')">
+                                    编队控制
+                                </div>
+                                <div class="section-content expanded" id="formationControlSection">
+                                    <div class="control-panel compact-control">
+                                        <div class="control-section">
+                                            <h3>编队设置</h3>
+                                            <div style="margin-bottom: 8px;">
+                                                <label>领航者:</label>
+                                                <select id="leaderSelector" class="coord-input">
+                                                    <option value="CAR1">CAR1</option>
+                                                    <option value="CAR2">CAR2</option>
+                                                    <option value="CAR3">CAR3</option>
+                                                    <option value="CAR4">CAR4</option>
+                                                </select>
+                                            </div>
+                                            <div style="margin-bottom: 8px;">
+                                                <label>队形:</label>
+                                                <select id="formationType" class="coord-input">
+                                                    <option value="line">直线编队</option>
+                                                    <option value="triangle">三角编队</option>
+                                                    <option value="square">方形编队</option>
+                                                    <option value="custom">自定义</option>
+                                                </select>
+                                            </div>
+                                            <div class="broadcast-controls">
+                                                <button class="broadcast-btn broadcast-on" onclick="startFormation()">启动编队</button>
+                                                <button class="broadcast-btn broadcast-off" onclick="stopFormation()">停止编队</button>
+                                            </div>
+                                            <div class="broadcast-status" id="formationStatus">
+                                                状态: 未启动
+                                            </div>
+                                        </div>
+
+                                        <!-- 预设队形预览 -->
+                                        <div class="control-section">
+                                            <h3>预设队形</h3>
+                                            <div style="display: flex; gap: 6px; margin-bottom: 8px;">
+                                                <button class="action-btn" onclick="loadFormationPreview('line')" style="font-size: 10px; padding: 4px;">直线</button>
+                                                <button class="action-btn" onclick="loadFormationPreview('triangle')" style="font-size: 10px; padding: 4px;">三角</button>
+                                                <button class="action-btn" onclick="loadFormationPreview('square')" style="font-size: 10px; padding: 4px;">方形</button>
+                                            </div>
+                                            <div id="formationPreview" style="font-size: 9px; color: #666; background: #f8f9fa; padding: 6px; border-radius: 4px; min-height: 40px;">
+                                                选择队形查看详情...
+                                            </div>
+                                        </div>
+
+                                        <!-- 自定义编队设置 -->
+                                        <div class="control-section" id="customFormationSection" style="display: none;">
+                                            <h3>自定义编队偏移</h3>
+                                            <div style="font-size: 10px; color: #666; margin-bottom: 6px;">
+                                                格式: {"CAR2": {"x": 0.5, "y": 0, "yaw": 0}, "CAR3": {"x": 0, "y": 0.5, "yaw": 0}}
+                                            </div>
+                                            <textarea id="customOffsets" class="coord-input" rows="3" placeholder='{"CAR2": {"x": -0.5, "y": 0, "yaw": 0}, "CAR3": {"x": -1.0, "y": 0, "yaw": 0}, "CAR4": {"x": -1.5, "y": 0, "yaw": 0}}' style="width: 100%; font-size: 10px;"></textarea>
+                                            <button class="action-btn" onclick="setCustomFormation()" style="margin-top: 6px;">设置自定义编队</button>
+                                        </div>
+
+                                        <!-- 动态调整 -->
+                                        <div class="control-section" id="dynamicAdjustSection" style="display: none;">
+                                            <h3>动态调整</h3>
+                                            <div style="font-size: 10px; color: #666; margin-bottom: 6px;">
+                                                实时调整队形（仅限跟随者）
+                                            </div>
+                                            <div class="position-control" id="followerInputsContainer">
+                                                <!-- 这里会通过JavaScript动态生成输入框 -->
+                                            </div>
+                                            <button class="action-btn" onclick="updateFormationOffsets()" style="margin-top: 6px;">更新偏移量</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                    </div>
+                    <!-- 右侧列：控制面板 -->
+                    <div class="sidebar-right">
+                        <div class="right-controls">
+                            <!-- 小车控制 -->
+                            <div class="collapsible-section">
+                                <div class="section-header" onclick="toggleSection('carControlSection')">
+                                    小车控制
+                                </div>
+                                <div class="section-content expanded" id="carControlSection">
+                                    <div class="control-panel compact-control">
+                                        <div class="control-section">
+                                            <h3>选择控制的小车</h3>
+                                            <select id="carSelector" class="coord-input">
+                                                <option value="">-- 选择小车 --</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="control-section">
+                                            <h3>位置控制</h3>
+                                            <div class="position-control">
+                                                <div>
+                                                    <label>X坐标:</label>
+                                                    <input type="number" id="posX" class="coord-input" placeholder="X" step="0.1" min="-6" max="6">
+                                                </div>
+                                                <div>
+                                                    <label>Y坐标:</label>
+                                                    <input type="number" id="posY" class="coord-input" placeholder="Y" step="0.1" min="-6" max="6">
+                                                </div>
+                                                <div style="grid-column: span 2;">
+                                                    <label>航向角:</label>
+                                                    <input type="number" id="heading" class="coord-input" placeholder="角度" min="0" max="360">
+                                                </div>
+                                            </div>
+                                            <button class="action-btn" onclick="sendPositionCommand()">导航到指定位置</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 系统控制 -->
+                            <div class="collapsible-section">
+                                <div class="section-header" onclick="toggleSection('systemControlSection')">
+                                    系统控制
+                                </div>
+                                <div class="section-content expanded" id="systemControlSection">
+                                    <div class="control-panel compact-control">
+                                        <div class="control-section">
+                                            <h3>广播控制</h3>
+                                            <div class="broadcast-controls">
+                                                <button class="broadcast-btn broadcast-on" onclick="toggleBroadcast(true)" id="broadcastOnBtn">开启广播</button>
+                                                <button class="broadcast-btn broadcast-off" onclick="toggleBroadcast(false)" id="broadcastOffBtn">关闭广播</button>
+                                            </div>
+                                            <div class="broadcast-status" id="broadcastStatus">
+                                                状态: 未启动
+                                            </div>
+                                        </div>
+
+                                        <div class="control-section">
+                                            <h3>通信拓扑控制</h3>
+                                            <div style="margin-bottom: 8px;">
+                                                <div class="topology-matrix">
+                                                    <div class="matrix-header"></div>
+                                                    <div class="matrix-header">C1</div>
+                                                    <div class="matrix-header">C2</div>
+                                                    <div class="matrix-header">C3</div>
+                                                    <div class="matrix-header">C4</div>
+
+                                                    <div class="matrix-header">C1</div>
+                                                    <div class="matrix-cell"><input type="number" id="a11" class="coord-input" value="0" min="0" max="1" readonly style="background: #f0f0f0;"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a12" class="coord-input" value="1" min="0" max="1"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a13" class="coord-input" value="1" min="0" max="1"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a14" class="coord-input" value="1" min="0" max="1"></div>
+
+                                                    <div class="matrix-header">C2</div>
+                                                    <div class="matrix-cell"><input type="number" id="a21" class="coord-input" value="1" min="0" max="1"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a22" class="coord-input" value="0" min="0" max="1" readonly style="background: #f0f0f0;"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a23" class="coord-input" value="1" min="0" max="1"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a24" class="coord-input" value="1" min="0" max="1"></div>
+
+                                                    <div class="matrix-header">C3</div>
+                                                    <div class="matrix-cell"><input type="number" id="a31" class="coord-input" value="1" min="0" max="1"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a32" class="coord-input" value="1" min="0" max="1"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a33" class="coord-input" value="0" min="0" max="1" readonly style="background: #f0f0f0;"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a34" class="coord-input" value="1" min="0" max="1"></div>
+
+                                                    <div class="matrix-header">C4</div>
+                                                    <div class="matrix-cell"><input type="number" id="a41" class="coord-input" value="1" min="0" max="1"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a42" class="coord-input" value="1" min="0" max="1"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a43" class="coord-input" value="1" min="0" max="1"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a44" class="coord-input" value="0" min="0" max="1" readonly style="background: #f0f0f0;"></div>
+                                                </div>
+                                                <div style="font-size: 9px; color: #666; text-align: center; margin-top: 3px;">
+                                                    A(i,j)=1: CARi → CARj | 对角线固定为0
+                                                </div>
+                                            </div>
+
+                                            <div class="broadcast-controls">
+                                                <button class="broadcast-btn broadcast-on" onclick="enableTopology(true)">启用拓扑</button>
+                                                <button class="broadcast-btn broadcast-off" onclick="enableTopology(false)">禁用拓扑</button>
+                                            </div>
+
+                                            <div class="broadcast-status" id="topologyStatus">
+                                                状态: 未启用
+                                            </div>
+
+                                            <div class="visibility-info">
+                                                <div style="font-size: 10px; font-weight: bold; margin-bottom: 2px;">各小车可见性:</div>
+                                                <div id="visibilityInfo" style="font-size: 9px; line-height: 1.2;">
+                                                    CAR1: CAR2, CAR3, CAR4<br>
+                                                    CAR2: CAR1, CAR3, CAR4<br>
+                                                    CAR3: CAR1, CAR2, CAR4<br>
+                                                    CAR4: CAR1, CAR2, CAR3
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 系统状态 -->
+            <div class="system-status">
+                更新日期: 2024 | 系统运行正常 | 在线小车: <span id="onlineCarCount">0</span> 台
+            </div>
+        </div>
+    </div>
+
+    <!-- 小车详情弹窗 -->
+    <div class="car-popup" id="carPopup">
+        <button class="popup-close" onclick="closeCarPopup()">&times;</button>
+        <h3 id="popupCarId">CAR1</h3>
+        <div class="popup-details" id="popupDetails">
+            <!-- 详情内容将通过JavaScript动态生成 -->
+        </div>
+    </div>
+
+    <script>
+        // ==================== 广播配置 ====================
+        const BROADCAST_CONFIG = {
+            port: 8081,  // 与Python代码中的BROADCAST_PORT保持一致
+            host: '255.255.255.255'  // 广播地址
+        };
+
+        // ==================== 坐标范围配置 ====================
+        // 在这里修改坐标范围，方便后续调整
+        const COORDINATE_RANGE = {
+            minX: -6,   // X轴最小值
+            maxX: 6,    // X轴最大值
+            minY: -6,   // Y轴最小值
+            maxY: 6     // Y轴最大值
+        };
+
+        // 计算坐标范围显示文本
+        function getCoordinateRangeText() {
+            return `坐标范围: X[${COORDINATE_RANGE.minX}, ${COORDINATE_RANGE.maxX}], Y[${COORDINATE_RANGE.minY}, ${COORDINATE_RANGE.maxY}] | 角度: 0°=X轴正方向, 逆时针增加`;
+        }
+
+        // ==================== 其他变量 ====================
+        // 小车数据
+        let cars = [];
+        let selectedCarId = null;
+        let lastUpdateTime = 0;
+        let updateCount = 0;
+        let canvas, ctx;
+        let carPopup = document.getElementById('carPopup');
+        let popupCarId = document.getElementById('popupCarId');
+        let popupDetails = document.getElementById('popupDetails');
+
+        // 网络状态检查
+        function checkNetworkStatus() {
+            const statusElement = document.getElementById('broadcastStatus');
+            statusElement.innerHTML = `状态: 未启动 | 广播端口: ${BROADCAST_CONFIG.port}`;
+
+            console.log('📡 广播配置:', BROADCAST_CONFIG);
+            console.log('🌐 确保小车监听端口:', BROADCAST_CONFIG.port);
+        }
+
+        // 折叠面板控制
+        function toggleSection(sectionId) {
+            const section = document.getElementById(sectionId);
+            const header = section.previousElementSibling;
+
+            section.classList.toggle('expanded');
+            header.classList.toggle('collapsed');
+        }
+
+        // 初始化坐标图
+        function initCoordinateMap() {
+            canvas = document.getElementById('coordinateCanvas');
+            ctx = canvas.getContext('2d');
+
+            // 更新坐标范围显示
+            document.getElementById('coordinateRangeDisplay').textContent = getCoordinateRangeText();
+
+            // 设置Canvas尺寸
+            function resizeCanvas() {
+                canvas.width = canvas.offsetWidth;
+                canvas.height = canvas.offsetHeight;
+                drawCoordinateSystem();
+            }
+
+            // 初始调整尺寸
+            resizeCanvas();
+
+            // 监听窗口大小变化
+            window.addEventListener('resize', resizeCanvas);
+        }
+
+        // 绘制坐标系统
+        function drawCoordinateSystem() {
+            const width = canvas.width;
+            const height = canvas.height;
+
+            // 清空画布
+            ctx.clearRect(0, 0, width, height);
+
+            // 绘制背景
+            ctx.fillStyle = '#f8f9fa';
+            ctx.fillRect(0, 0, width, height);
+
+            // 计算坐标范围
+            const rangeX = COORDINATE_RANGE.maxX - COORDINATE_RANGE.minX;
+            const rangeY = COORDINATE_RANGE.maxY - COORDINATE_RANGE.minY;
+
+            // 确保横纵坐标比例1:1
+            const scaleX = width / rangeX;
+            const scaleY = height / rangeY;
+            const scale = Math.min(scaleX, scaleY); // 取较小的比例确保内容完全显示
+
+            // 计算居中偏移量
+            const offsetX = (width - rangeX * scale) / 2;
+            const offsetY = (height - rangeY * scale) / 2;
+
+            // 绘制网格
+            ctx.strokeStyle = '#e9ecef';
+            ctx.lineWidth = 1;
+
+            const gridSize = 1; // 网格大小为1个单位
+            for (let x = COORDINATE_RANGE.minX; x <= COORDINATE_RANGE.maxX; x += gridSize) {
+                const pixelX = coordinateToPixelX(x);
+                ctx.beginPath();
+                ctx.moveTo(pixelX, offsetY);
+                ctx.lineTo(pixelX, height - offsetY);
+                ctx.stroke();
+            }
+
+            for (let y = COORDINATE_RANGE.minY; y <= COORDINATE_RANGE.maxY; y += gridSize) {
+                const pixelY = coordinateToPixelY(y);
+                ctx.beginPath();
+                ctx.moveTo(offsetX, pixelY);
+                ctx.lineTo(width - offsetX, pixelY);
+                ctx.stroke();
+            }
+
+            // 绘制坐标轴
+            ctx.strokeStyle = '#495057';
+            ctx.lineWidth = 2;
+
+            // X轴
+            const zeroY = coordinateToPixelY(0);
+            ctx.beginPath();
+            ctx.moveTo(offsetX, zeroY);
+            ctx.lineTo(width - offsetX, zeroY);
+            ctx.stroke();
+
+            // Y轴
+            const zeroX = coordinateToPixelX(0);
+            ctx.beginPath();
+            ctx.moveTo(zeroX, offsetY);
+            ctx.lineTo(zeroX, height - offsetY);
+            ctx.stroke();
+
+            // 绘制坐标刻度
+            ctx.fillStyle = '#495057';
+            ctx.font = '11px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+
+            // X轴刻度（每2个单位一个刻度）
+            for (let x = COORDINATE_RANGE.minX; x <= COORDINATE_RANGE.maxX; x += 2) {
+                const pixelX = coordinateToPixelX(x);
+                ctx.beginPath();
+                ctx.moveTo(pixelX, zeroY - 5);
+                ctx.lineTo(pixelX, zeroY + 5);
+                ctx.stroke();
+
+                ctx.fillText(x.toString(), pixelX, zeroY + 10);
+            }
+
+            // Y轴刻度
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+            for (let y = COORDINATE_RANGE.minY; y <= COORDINATE_RANGE.maxY; y += 2) {
+                const pixelY = coordinateToPixelY(y);
+                ctx.beginPath();
+                ctx.moveTo(zeroX - 5, pixelY);
+                ctx.lineTo(zeroX + 5, pixelY);
+                ctx.stroke();
+
+                ctx.fillText(y.toString(), zeroX - 10, pixelY);
+            }
+
+            // 绘制坐标原点
+            ctx.fillStyle = '#e74c3c';
+            ctx.beginPath();
+            ctx.arc(zeroX, zeroY, 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 绘制坐标轴标签
+            ctx.fillStyle = '#2c3e50';
+            ctx.font = '13px Arial';
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'top';
+            ctx.fillText('Y', zeroX - 15, offsetY);
+
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText('X', width - offsetX, zeroY - 10);
+
+            // 绘制角度指示器
+            drawAngleIndicators();
+        }
+
+        // 绘制角度指示器
+        function drawAngleIndicators() {
+            const width = canvas.width;
+            const height = canvas.height;
+
+            // 计算坐标范围
+            const rangeX = COORDINATE_RANGE.maxX - COORDINATE_RANGE.minX;
+            const rangeY = COORDINATE_RANGE.maxY - COORDINATE_RANGE.minY;
+            const scaleX = width / rangeX;
+            const scaleY = height / rangeY;
+            const scale = Math.min(scaleX, scaleY);
+
+            // 计算居中偏移量
+            const offsetX = (width - rangeX * scale) / 2;
+            const offsetY = (height - rangeY * scale) / 2;
+
+            const centerX = coordinateToPixelX(0);
+            const centerY = coordinateToPixelY(0);
+            const radius = Math.min(width - offsetX * 2, height - offsetY * 2) * 0.35;
+
+            ctx.strokeStyle = '#bdc3c7';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 3]);
+
+            // 绘制角度圆
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.setLineDash([]);
+
+            // 绘制角度标记
+            ctx.fillStyle = '#7f8c8d';
+            ctx.font = '11px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            for (let angle = 0; angle < 360; angle += 30) {
+                const rad = angle * Math.PI / 180;
+                // 调整Y轴方向：Canvas Y轴向下，此处用"-sin(rad)"使角度逆时针时90°指向正上方
+                const x = centerX + radius * Math.cos(rad);
+                const y = centerY - radius * Math.sin(rad);
+
+                // 绘制角度线
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.lineTo(x, y);
+                ctx.stroke();
+
+                // 绘制角度文本（确保在圆外）
+                const textRadius = radius + 20;
+                const textX = centerX + textRadius * Math.cos(rad);
+                const textY = centerY - textRadius * Math.sin(rad);
+                ctx.fillText(angle + '°', textX, textY);
+            }
+
+            // 特别标注0度方向（X轴正方向）
+            ctx.fillStyle = '#e74c3c';
+            const zeroTextX = centerX + (radius + 25) * Math.cos(0);
+            const zeroTextY = centerY - (radius + 25) * Math.sin(0);
+            ctx.fillText('0°', zeroTextX, zeroTextY);
+        }
+
+        // ==================== 坐标转换函数 ====================
+        // 将坐标X转换为像素X（1:1比例，居中显示）
+        function coordinateToPixelX(x) {
+            const width = canvas.width;
+            const rangeX = COORDINATE_RANGE.maxX - COORDINATE_RANGE.minX;
+            const rangeY = COORDINATE_RANGE.maxY - COORDINATE_RANGE.minY;
+            const scaleX = width / rangeX;
+            const scaleY = canvas.height / rangeY;
+            const scale = Math.min(scaleX, scaleY);
+            const offsetX = (width - rangeX * scale) / 2;
+
+            return offsetX + (x - COORDINATE_RANGE.minX) * scale;
+        }
+
+        // 将坐标Y转换为像素Y（1:1比例，居中显示）
+        function coordinateToPixelY(y) {
+            const height = canvas.height;
+            const rangeX = COORDINATE_RANGE.maxX - COORDINATE_RANGE.minX;
+            const rangeY = COORDINATE_RANGE.maxY - COORDINATE_RANGE.minY;
+            const scaleX = canvas.width / rangeX;
+            const scaleY = height / rangeY;
+            const scale = Math.min(scaleX, scaleY);
+            const offsetY = (height - rangeY * scale) / 2;
+
+            return height - offsetY - (y - COORDINATE_RANGE.minY) * scale;
+        }
+
+        // ==================== 其他函数保持不变 ====================
+        // 绘制小车
+        function drawCars() {
+            cars.forEach(car => {
+                if (!car.connected) return;
+
+                const pixelX = coordinateToPixelX(car.position.x);
+                const pixelY = coordinateToPixelY(car.position.y);
+
+                // 绘制小车指针
+                drawCarPointer(pixelX, pixelY, car.heading, car.id, car.battery, car.velocity);
+            });
+        }
+
+        // 绘制小车指针（保持不变）
+        function drawCarPointer(x, y, heading, carId, battery, velocity) {
+            const pointerSize = 18;
+            const pointerLength = 25;
+
+            // 保存当前上下文状态
+            ctx.save();
+
+            // 移动到小车位置并旋转画布（-heading 适配 Canvas 顺时针旋转为正的特性，实现逆时针角度递增）
+            ctx.translate(x, y);
+            ctx.rotate(-heading * Math.PI / 180);
+
+            // 绘制指针主体（顶点指向 X 轴正方向，旋转后匹配逆时针角度）
+            ctx.fillStyle = selectedCarId === carId ? '#e74c3c' : '#3498db';
+            ctx.beginPath();
+            ctx.moveTo(pointerLength / 2, 0); // 顶点在 X 轴正方向
+            ctx.lineTo(-pointerLength / 2, -pointerSize / 2); // 左下点
+            ctx.lineTo(-pointerLength / 2, pointerSize / 2); // 右上点
+            ctx.closePath();
+            ctx.fill();
+
+            // 绘制指针中心圆
+            ctx.fillStyle = selectedCarId === carId ? '#c0392b' : '#2980b9';
+            ctx.beginPath();
+            ctx.arc(0, 0, 6, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 恢复上下文状态
+            ctx.restore();
+
+            // 绘制小车ID
+            ctx.fillStyle = selectedCarId === carId ? '#e74c3c' : '#2c3e50';
+            ctx.font = 'bold 13px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText(carId, x, y - pointerLength/2 - 5);
+
+            // 绘制电池状态指示
+            const batteryWidth = 25;
+            const batteryHeight = 7;
+            const batteryX = x - batteryWidth/2;
+            const batteryY = y + pointerLength/2 + 8;
+
+            // 电池外壳
+            ctx.strokeStyle = '#95a5a6';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(batteryX, batteryY, batteryWidth, batteryHeight);
+
+            // 电池正极
+            ctx.fillStyle = '#95a5a6';
+            ctx.fillRect(batteryX + batteryWidth, batteryY + batteryHeight/4, 2, batteryHeight/2);
+
+            // 电池电量
+            const batteryLevel = Math.min(100, Math.max(0, (battery - 10) / 2.6 * 100));
+            ctx.fillStyle = batteryLevel < 20 ? '#e74c3c' : '#2ecc71';
+            ctx.fillRect(batteryX + 1, batteryY + 1, (batteryWidth - 2) * batteryLevel / 100, batteryHeight - 2);
+
+            // 绘制线性速度矢量
+            if (velocity && (velocity.vx !== 0 || velocity.vy !== 0)) {
+                const speedScale = 40; // 速度矢量缩放因子
+                const vx = velocity.vx * speedScale;
+                const vy = -velocity.vy * speedScale; // Y轴方向反转
+
+                // 绘制线性速度矢量
+                ctx.strokeStyle = '#e74c3c';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                ctx.lineTo(x + vx, y + vy);
+                ctx.stroke();
+
+                // 绘制速度箭头
+                const arrowSize = 5;
+                const angle = Math.atan2(vy, vx);
+                ctx.beginPath();
+                ctx.moveTo(x + vx, y + vy);
+                ctx.lineTo(x + vx - arrowSize * Math.cos(angle - Math.PI/6), y + vy - arrowSize * Math.sin(angle - Math.PI/6));
+                ctx.moveTo(x + vx, y + vy);
+                ctx.lineTo(x + vx - arrowSize * Math.cos(angle + Math.PI/6), y + vy - arrowSize * Math.sin(angle + Math.PI/6));
+                ctx.stroke();
+            }
+        }
+
+        // 精简版数据解析函数
+        function parseCompactCarData(carData) {
+            // 检查是否为精简格式
+            if (carData.i !== undefined) {
+                // 精简格式解析
+                return {
+                    id: carData.i,
+                    mac_address: carData.ma || `CAR_${carData.i}`,
+                    position: {
+                        x: Array.isArray(carData.p) ? carData.p[0] : (carData.position?.x || 0),
+                        y: Array.isArray(carData.p) ? carData.p[1] : (carData.position?.y || 0)
+                    },
+                    heading: carData.h || carData.heading || 0,
+                    battery: carData.b || carData.battery || 0,
+                    velocity: {
+                        vx: Array.isArray(carData.v) ? carData.v[0] : (carData.velocity?.vx || 0),
+                        vy: Array.isArray(carData.v) ? carData.v[1] : (carData.velocity?.vy || 0),
+                        vz: Array.isArray(carData.v) ? carData.v[2] : (carData.velocity?.vz || 0)
+                    },
+                    speed: carData.s || carData.speed || 0,
+                    connected: carData.c !== undefined ? carData.c : carData.connected,
+                    status: carData.st || carData.status || "正常",
+                    last_update: carData.lu || carData.last_update || Date.now(),
+                    update_count: carData.uc || carData.update_count || 0
+                };
+            } else {
+                // 完整格式解析
+                return carData;
+            }
+        }
+
+        // 获取小车数据
+        async function fetchCars() {
+            try {
+                const startTime = performance.now();
+                const response = await fetch('/api/cars');
+                let carsData = await response.json();
+                const endTime = performance.now();
+
+                // 标准化小车数据（支持精简和完整格式）
+                cars = Array.isArray(carsData) ? carsData.map(parseCompactCarData) : [];
+
+                updateCarList();
+                drawCoordinateSystem();
+                drawCars();
+                updateCarSelector();
+                updatePerformanceInfo(cars.length, endTime - startTime);
+
+            } catch (error) {
+                console.error('获取小车数据失败:', error);
+                updatePerformanceInfo(0, 0, true);
+            }
+        }
+
+        // 更新性能信息
+        function updatePerformanceInfo(carCount, fetchTime, isError = false) {
+            const performanceInfo = document.getElementById('performanceInfo');
+            const carCountElement = document.getElementById('carCount');
+            const onlineCarCountElement = document.getElementById('onlineCarCount');
+
+            updateCount++;
+            carCountElement.textContent = carCount;
+
+            // 更新在线小车数量
+            const onlineCount = cars.filter(car => car.connected).length;
+            onlineCarCountElement.textContent = onlineCount;
+
+            if (isError) {
+                performanceInfo.innerHTML = `❌ 连接错误 | 小车: ${carCount}`;
+                performanceInfo.style.background = '#fed7d7';
+            } else {
+                performanceInfo.innerHTML =
+                    `更新频率: 300ms | 小车: ${carCount} | 响应: ${fetchTime.toFixed(1)}ms`;
+                performanceInfo.style.background = '#c6f6d5';
+            }
+        }
+
+        // 更新小车列表 - 修复速度显示
+        function updateCarList() {
+            const carList = document.getElementById('carList');
+
+            if (cars.length === 0) {
+                carList.innerHTML = '<div class="no-cars" style="text-align: center; color: #718096; padding: 15px;">等待小车连接...</div>';
+                return;
+            }
+
+            carList.innerHTML = cars.map(car => `
+                <div class="car-item ${car.connected ? '' : 'disconnected'} ${car.id === selectedCarId ? 'selected' : ''}" onclick="selectCar('${car.id}')">
+                    <div class="car-header">
+                        <div class="car-id">🚗 ${car.id}</div>
+                        <div class="car-status ${car.connected ? 'status-connected' : 'status-disconnected'}">
+                            ${car.connected ? '在线' : '离线'}
+                        </div>
+                    </div>
+                    <div class="car-details">
+                        <div class="detail-item">
+                            <span class="detail-label">位置</span>
+                            <span class="detail-value">(${car.position.x.toFixed(2)}, ${car.position.y.toFixed(2)})</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">航向角</span>
+                            <span class="detail-value">${car.heading.toFixed(1)}°</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">速度</span>
+                            <span class="detail-value">
+                                ${car.speed.toFixed(3)} mm/s
+                                <div class="speed-info">
+                                    <div class="velocity-components">
+                                        <span>Vx: ${car.velocity.vx.toFixed(3)}</span>
+                                        <span>Vy: ${car.velocity.vy.toFixed(3)}</span>
+                                        <span>Vz: ${car.velocity.vz.toFixed(3)}</span>
+                                    </div>
+                                </div>
+                            </span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">电压</span>
+                            <span class="detail-value">
+                                <div class="battery">
+                                    <div class="battery-level">
+                                        <div class="battery-fill ${car.battery < 11 ? 'battery-low' : ''}"
+                                             style="width: ${Math.min(100, Math.max(0, (car.battery - 10) / 2.6 * 100))}%"></div>
+                                    </div>
+                                    ${car.battery.toFixed(1)}V
+                                </div>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 更新小车选择器
+        function updateCarSelector() {
+            const selector = document.getElementById('carSelector');
+            const currentSelection = selector.value;
+
+            selector.innerHTML = '<option value="">-- 选择小车 --</option>' +
+                cars.filter(car => car.connected).map(car =>
+                    `<option value="${car.id}" ${car.id === currentSelection ? 'selected' : ''}>${car.id}</option>`
+                ).join('');
+
+            if (!currentSelection && cars.length > 0) {
+                const firstConnected = cars.find(car => car.connected);
+                if (firstConnected) {
+                    selector.value = firstConnected.id;
+                    selectedCarId = firstConnected.id;
+                }
+            }
+        }
+
+        // 选择小车
+        function selectCar(carId) {
+            selectedCarId = carId;
+            document.getElementById('carSelector').value = carId;
+
+            // 高亮显示选中的小车
+            document.querySelectorAll('.car-item').forEach(item => {
+                item.classList.toggle('selected', item.querySelector('.car-id').textContent.includes(carId));
+            });
+
+            // 重绘坐标图以突出显示选中的小车
+            drawCoordinateSystem();
+            drawCars();
+        }
+
+        // 广播控制函数 - 修改版本
+        async function toggleBroadcast(enable) {
+            try {
+                const response = await fetch('/api/broadcast', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        enable: enable
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showMessage(result.message + ' - 端口: ' + BROADCAST_CONFIG.port, 'success');
+                    updateBroadcastStatus(enable);
+                } else {
+                    showMessage(result.error, 'error');
+                }
+            } catch (error) {
+                console.error('控制广播失败:', error);
+                showMessage('控制广播失败 - 请检查服务器连接', 'error');
+            }
+        }
+
+        // 更新广播状态显示 - 修改版本
+        function updateBroadcastStatus(enable) {
+            const statusElement = document.getElementById('broadcastStatus');
+            const onBtn = document.getElementById('broadcastOnBtn');
+            const offBtn = document.getElementById('broadcastOffBtn');
+
+            if (enable) {
+                statusElement.innerHTML = `状态: <span style="color: #48bb78;">广播中</span> | 端口: ${BROADCAST_CONFIG.port}`;
+                onBtn.classList.remove('inactive');
+                offBtn.classList.add('inactive');
+            } else {
+                statusElement.innerHTML = `状态: <span style="color: #f56565;">已停止</span> | 端口: ${BROADCAST_CONFIG.port}`;
+                onBtn.classList.add('inactive');
+                offBtn.classList.remove('inactive');
+            }
+        }
+
+        // 获取广播状态
+        async function getBroadcastStatus() {
+            try {
+                const response = await fetch('/api/broadcast/status');
+                const status = await response.json();
+                updateBroadcastStatus(status.broadcast_enabled);
+            } catch (error) {
+                console.error('获取广播状态失败:', error);
+            }
+        }
+
+        // 发送位置控制指令
+        async function sendPositionCommand() {
+            if (!selectedCarId) {
+                alert('请先选择要控制的小车');
+                return;
+            }
+
+            const posX = parseFloat(document.getElementById('posX').value);
+            const posY = parseFloat(document.getElementById('posY').value);
+            const heading = document.getElementById('heading').value ?
+                parseInt(document.getElementById('heading').value) : undefined;
+
+            if (isNaN(posX) || isNaN(posY)) {
+                alert('请输入有效的坐标值');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/control_position', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        car_id: selectedCarId,
+                        position: { x: posX, y: posY },
+                        heading: heading
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showMessage(result.message, 'success');
+                } else {
+                    showMessage(result.error, 'error');
+                }
+            } catch (error) {
+                console.error('发送位置指令失败:', error);
+                showMessage('发送位置指令失败', 'error');
+            }
+        }
+
+        // 拓扑控制函数
+        async function setTopology() {
+            const topology = [
+                [0, parseInt(document.getElementById('a12').value), parseInt(document.getElementById('a13').value), parseInt(document.getElementById('a14').value)],
+                [parseInt(document.getElementById('a21').value), 0, parseInt(document.getElementById('a23').value), parseInt(document.getElementById('a24').value)],
+                [parseInt(document.getElementById('a31').value), parseInt(document.getElementById('a32').value), 0, parseInt(document.getElementById('a34').value)],
+                [parseInt(document.getElementById('a41').value), parseInt(document.getElementById('a42').value), parseInt(document.getElementById('a43').value), 0]
+            ];
+
+            try {
+                const response = await fetch('/api/topology', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        topology: topology,
+                        enable: true
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showMessage(result.message, 'success');
+                    updateTopologyStatus(true);
+                    updateVisibilityInfo(); // 更新可见性信息
+                } else {
+                    showMessage(result.error, 'error');
+                }
+            } catch (error) {
+                console.error('设置拓扑失败:', error);
+                showMessage('设置拓扑失败', 'error');
+            }
+        }
+
+        async function enableTopology(enable) {
+            try {
+                const response = await fetch('/api/topology/toggle', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        enable: enable
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showMessage(result.message, 'success');
+                    updateTopologyStatus(enable);
+
+                    // 如果启用拓扑，同时设置拓扑矩阵
+                    if (enable) {
+                        setTopology();
+                    } else {
+                        updateVisibilityInfo(); // 禁用时也更新可见性信息
+                    }
+                } else {
+                    showMessage(result.error, 'error');
+                }
+            } catch (error) {
+                console.error('切换拓扑状态失败:', error);
+                showMessage('切换拓扑状态失败', 'error');
+            }
+        }
+
+        async function getTopologyStatus() {
+            try {
+                const response = await fetch('/api/topology/status');
+                const status = await response.json();
+                updateTopologyStatus(status.topology_enabled);
+
+                // 更新矩阵显示
+                if (status.topology) {
+                    document.getElementById('a12').value = status.topology[0][1];
+                    document.getElementById('a13').value = status.topology[0][2];
+                    document.getElementById('a14').value = status.topology[0][3];
+                    document.getElementById('a21').value = status.topology[1][0];
+                    document.getElementById('a23').value = status.topology[1][2];
+                    document.getElementById('a24').value = status.topology[1][3];
+                    document.getElementById('a31').value = status.topology[2][0];
+                    document.getElementById('a32').value = status.topology[2][1];
+                    document.getElementById('a34').value = status.topology[2][3];
+                    document.getElementById('a41').value = status.topology[3][0];
+                    document.getElementById('a42').value = status.topology[3][1];
+                    document.getElementById('a43').value = status.topology[3][2];
+                }
+
+                updateVisibilityInfo(); // 更新可见性信息
+            } catch (error) {
+                console.error('获取拓扑状态失败:', error);
+            }
+        }
+
+        function updateTopologyStatus(enable) {
+            const statusElement = document.getElementById('topologyStatus');
+            if (enable) {
+                statusElement.innerHTML = '状态: <span style="color: #48bb78;">已启用</span>';
+            } else {
+                statusElement.innerHTML = '状态: <span style="color: #f56565;">未启用</span>';
+            }
+        }
+
+        // 更新可见性信息
+        async function updateVisibilityInfo() {
+            try {
+                const visibilityInfo = document.getElementById('visibilityInfo');
+                let html = '';
+
+                for (let carId of ['CAR1', 'CAR2', 'CAR3', 'CAR4']) {
+                    const response = await fetch(`/api/topology/visible/${carId}`);
+                    const data = await response.json();
+                    html += `${carId}: ${data.visible_cars.join(', ')}<br>`;
+                }
+
+                visibilityInfo.innerHTML = html;
+            } catch (error) {
+                console.error('获取可见性信息失败:', error);
+            }
+        }
+
+        // 显示消息
+        function showMessage(message, type) {
+            // 创建临时消息提示
+            const messageDiv = document.createElement('div');
+            messageDiv.style.cssText = `
+                position: fixed;
+                top: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                padding: 8px 16px;
+                background: ${type === 'success' ? '#48bb78' : '#f56565'};
+                color: white;
+                border-radius: 5px;
+                z-index: 10000;
+                font-weight: bold;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                font-size: 13px;
+            `;
+            messageDiv.textContent = message;
+            document.body.appendChild(messageDiv);
+
+            setTimeout(() => {
+                document.body.removeChild(messageDiv);
+            }, 3000);
+        }
+
+        // 显示小车详情弹窗 - 修复速度显示
+        function showCarPopup(carId, x, y) {
+            const car = cars.find(c => c.id === carId);
+            if (!car) return;
+
+            popupCarId.textContent = carId;
+            popupDetails.innerHTML = `
+                <div class="detail-item">
+                    <span class="detail-label">位置</span>
+                    <span class="detail-value">(${car.position.x.toFixed(2)}, ${car.position.y.toFixed(2)})</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">航向角</span>
+                    <span class="detail-value">${car.heading.toFixed(1)}°</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">速度</span>
+                    <span class="detail-value">
+                        ${car.speed.toFixed(3)} m/s
+                        <div class="speed-info">
+                            <div>Vx: ${car.velocity.vx.toFixed(3)} m/s</div>
+                            <div>Vy: ${car.velocity.vy.toFixed(3)} m/s</div>
+                            <div>Vz: ${car.velocity.vz.toFixed(3)} rad/s</div>
+                        </div>
+                    </span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">电压</span>
+                    <span class="detail-value">${car.battery.toFixed(1)}V</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">状态</span>
+                    <span class="detail-value">${car.status}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">MAC地址</span>
+                    <span class="detail-value">${car.mac_address}</span>
+                </div>
+            `;
+
+            carPopup.style.display = 'block';
+            carPopup.style.left = `${x + 10}px`;
+            carPopup.style.top = `${y + 10}px`;
+        }
+
+        // 生成跟随者偏移量输入框
+        function generateFollowerInputs(leaderId) {
+            const allCars = ['CAR1', 'CAR2', 'CAR3', 'CAR4'];
+            const followers = allCars.filter(carId => carId !== leaderId);
+
+            let html = '';
+            followers.forEach(carId => {
+                // 为每个跟随者生成X、Y坐标输入框
+                html += `
+                    <div>
+                        <label>${carId} X:</label>
+                        <input type="number" id="${carId}X" class="coord-input" value="0" step="0.1">
+                    </div>
+                    <div>
+                        <label>${carId} Y:</label>
+                        <input type="number" id="${carId}Y" class="coord-input" value="0" step="0.1">
+                    </div>
+                `;
+            });
+
+            return html;
+        }
+
+        // 设置默认偏移量
+        function setDefaultOffsets(formationType, leaderId) {
+            const defaults = {
+                'line': {
+                    'CAR1': {x: 0, y: 0},
+                    'CAR2': {x: -0.5, y: 0},
+                    'CAR3': {x: -1.0, y: 0},
+                    'CAR4': {x: -1.5, y: 0}
+                },
+                'triangle': {
+                    'CAR1': {x: 0, y: 0},
+                    'CAR2': {x: -0.5, y: -0.5},
+                    'CAR3': {x: -0.5, y: 0.5},
+                    'CAR4': {x: -1.0, y: 0}
+                },
+                'square': {
+                    'CAR1': {x: 0, y: 0},
+                    'CAR2': {x: 0, y: -0.5},
+                    'CAR3': {x: -0.5, y: -0.5},
+                    'CAR4': {x: -0.5, y: 0}
+                }
+            };
+
+            const offsets = defaults[formationType] || defaults['line'];
+            const allCars = ['CAR1', 'CAR2', 'CAR3', 'CAR4'];
+            const followers = allCars.filter(carId => carId !== leaderId);
+
+            followers.forEach(carId => {
+                const offset = offsets[carId] || {x: 0, y: 0};
+                const xInput = document.getElementById(`${carId}X`);
+                const yInput = document.getElementById(`${carId}Y`);
+                if (xInput) xInput.value = offset.x;
+                if (yInput) yInput.value = offset.y;
+            });
+        }
+
+        // 关闭小车详情弹窗
+        function closeCarPopup() {
+            carPopup.style.display = 'none';
+        }
+
+        // 编队控制函数
+        async function startFormation() {
+            const leaderId = document.getElementById('leaderSelector').value;
+            const formationType = document.getElementById('formationType').value;
+
+            try {
+                const response = await fetch('/api/formation/start', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        leader_id: leaderId,
+                        formation_type: formationType
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showMessage(result.message, 'success');
+                    updateFormationStatus(true, leaderId, formationType);
+                    // 显示动态调整面板
+                    document.getElementById('dynamicAdjustSection').style.display = 'block';
+                } else {
+                    showMessage(result.error, 'error');
+                }
+            } catch (error) {
+                console.error('启动编队失败:', error);
+                showMessage('启动编队失败', 'error');
+            }
+        }
+
+        async function stopFormation() {
+            try {
+                const response = await fetch('/api/formation/stop', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showMessage(result.message, 'success');
+                    updateFormationStatus(false);
+                    // 隐藏动态调整面板
+                    document.getElementById('dynamicAdjustSection').style.display = 'none';
+                } else {
+                    showMessage(result.error, 'error');
+                }
+            } catch (error) {
+                console.error('停止编队失败:', error);
+                showMessage('停止编队失败', 'error');
+            }
+        }
+
+        async function setCustomFormation() {
+            const leaderId = document.getElementById('leaderSelector').value;
+            const customOffsetsText = document.getElementById('customOffsets').value;
+
+            try {
+                const customOffsets = JSON.parse(customOffsetsText);
+
+                const response = await fetch('/api/formation/custom', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        leader_id: leaderId,
+                        offsets: customOffsets
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showMessage(result.message, 'success');
+                    updateFormationStatus(true, leaderId, 'custom');
+                    document.getElementById('dynamicAdjustSection').style.display = 'block';
+                } else {
+                    showMessage(result.error, 'error');
+                }
+            } catch (error) {
+                console.error('设置自定义编队失败:', error);
+                showMessage('自定义编队格式错误，请检查JSON格式', 'error');
+            }
+        }
+
+        // 更新编队偏移量 - 修复支持所有小车
+        async function updateFormationOffsets() {
+            const leaderId = document.getElementById('leaderSelector').value;
+            const allCars = ['CAR1', 'CAR2', 'CAR3', 'CAR4'];
+            const followers = allCars.filter(carId => carId !== leaderId);
+
+            const offsets = {};
+
+            // 为每个跟随者收集偏移量
+            followers.forEach(carId => {
+                const x = parseFloat(document.getElementById(`${carId}X`).value) || 0;
+                const y = parseFloat(document.getElementById(`${carId}Y`).value) || 0;
+                offsets[carId] = {"x": x, "y": y, "yaw": 0};
+            });
+
+            try {
+                const response = await fetch('/api/formation/update_offsets', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        offsets: offsets
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showMessage(result.message, 'success');
+                } else {
+                    showMessage(result.error, 'error');
+                }
+            } catch (error) {
+                console.error('更新编队偏移量失败:', error);
+                showMessage('更新编队偏移量失败', 'error');
+            }
+        }
+
+        async function loadFormationPreview(formationType) {
+            try {
+                const response = await fetch('/api/formation/configs');
+                const result = await response.json();
+
+                if (result.success && result.formation_configs[formationType]) {
+                    const config = result.formation_configs[formationType];
+                    let previewHtml = `<strong>${formationType} 队形:</strong><br>`;
+
+                    for (const [carId, offset] of Object.entries(config)) {
+                        previewHtml += `${carId}: (${offset.x}, ${offset.y}, ${offset.yaw})<br>`;
+                    }
+
+                    document.getElementById('formationPreview').innerHTML = previewHtml;
+
+                    // 如果是自定义模式，填充到文本框
+                    if (formationType !== 'custom') {
+                        document.getElementById('customOffsets').value = JSON.stringify(config, null, 2);
+                    }
+                }
+            } catch (error) {
+                console.error('加载队形预览失败:', error);
+            }
+        }
+
+        function updateFormationStatus(enabled, leaderId = '', formationType = '') {
+            const statusElement = document.getElementById('formationStatus');
+            if (enabled) {
+                statusElement.innerHTML = `状态: <span style="color: #48bb78;">编队中</span> - 领航者: ${leaderId}, 队形: ${formationType}`;
+            } else {
+                statusElement.innerHTML = '状态: <span style="color: #f56565;">未启动</span>';
+            }
+        }
+
+        // 显示/隐藏自定义编队设置
+        document.getElementById('formationType').addEventListener('change', function() {
+            const customSection = document.getElementById('customFormationSection');
+            if (this.value === 'custom') {
+                customSection.style.display = 'block';
+            } else {
+                customSection.style.display = 'none';
+            }
+        });
+
+        // 领航者选择变化时更新动态调整面板
+        document.getElementById('leaderSelector').addEventListener('change', function() {
+            updateDynamicAdjustSection(this.value);
+        });
+
+        // 更新动态调整面板
+        function updateDynamicAdjustSection(leaderId) {
+            const dynamicSection = document.getElementById('dynamicAdjustSection');
+            const container = document.getElementById('followerInputsContainer');
+
+            // 生成新的输入框
+            container.innerHTML = generateFollowerInputs(leaderId);
+
+            // 设置默认值（根据队形类型）
+            const formationType = document.getElementById('formationType').value;
+            setDefaultOffsets(formationType, leaderId);
+        }
+
+        // 队形类型变化时也更新默认值
+        document.getElementById('formationType').addEventListener('change', function() {
+            const leaderId = document.getElementById('leaderSelector').value;
+            setDefaultOffsets(this.value, leaderId);
+        });
+
+        // 定期获取编队状态
+        async function getFormationStatus() {
+            try {
+                const response = await fetch('/api/formation/status');
+                const status = await response.json();
+                if (status.formation_enabled) {
+                    updateFormationStatus(true, status.formation_leader, status.formation_type);
+                    document.getElementById('dynamicAdjustSection').style.display = 'block';
+                } else {
+                    updateFormationStatus(false);
+                    document.getElementById('dynamicAdjustSection').style.display = 'none';
+                }
+            } catch (error) {
+                console.error('获取编队状态失败:', error);
+            }
+        }
+
+        // 在页面加载时初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 加载默认队形预览
+            loadFormationPreview('line');
+
+            // 初始化动态调整面板
+            const initialLeader = document.getElementById('leaderSelector').value;
+            updateDynamicAdjustSection(initialLeader);
+
+            // 开始定期获取状态
+            setInterval(getFormationStatus, 3000);
+        });
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initCoordinateMap();
+
+            // 显示广播配置信息
+            checkNetworkStatus();
+
+            // 初始获取小车数据
+            fetchCars();
+
+            // 更快的更新频率：每150ms更新一次
+            setInterval(fetchCars, 150);
+
+            // 小车选择器变化事件
+            document.getElementById('carSelector').addEventListener('change', function() {
+                selectedCarId = this.value;
+                updateCarList();
+            });
+
+            // 获取广播状态
+            getBroadcastStatus();
+
+            // 定期更新广播状态
+            setInterval(getBroadcastStatus, 5000);
+
+            // 获取拓扑状态
+            getTopologyStatus();
+
+            // 定期更新拓扑状态
+            setInterval(getTopologyStatus, 5000);
+
+            // 添加点击小车事件监听
+            canvas.addEventListener('click', function(e) {
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+
+                // 检查是否点击了小车
+                cars.forEach(car => {
+                    if (!car.connected) return;
+
+                    const carX = coordinateToPixelX(car.position.x);
+                    const carY = coordinateToPixelY(car.position.y);
+
+                    // 简单判断点击是否在小车附近
+                    const distance = Math.sqrt(Math.pow(x - carX, 2) + Math.pow(y - carY, 2));
+                    if (distance < 30) {
+                        showCarPopup(car.id, e.clientX, e.clientY);
+                        selectCar(car.id);
+                    }
+                });
+            });
+
+            console.log('🚀 智能小车坐标监控系统已启动 - 角度系统: 0°=X轴正向, 逆时针增加');
+            console.log('📡 广播配置:', BROADCAST_CONFIG);
+            console.log('🌐 确保小车监听端口:', BROADCAST_CONFIG.port);
+            console.log('💡 支持精简数据格式和完整数据格式');
+            console.log('📊 显示所有速度分量: Vx(线性速度X), Vy(线性速度Y), Vz(角速度Z)');
+            console.log('🔗 支持通信拓扑矩阵控制');
+            console.log('📐 坐标范围: X[' + COORDINATE_RANGE.minX + ', ' + COORDINATE_RANGE.maxX + '], Y[' + COORDINATE_RANGE.minY + ', ' + COORDINATE_RANGE.maxY + ']');
+        });
+    </script>
+</body>
+</html>
