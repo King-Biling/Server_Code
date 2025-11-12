@@ -15,7 +15,7 @@ app.register_blueprint(formation_bp)  # 注册编队控制器蓝图
 cars = {}
 car_lock = threading.Lock()
 
-# 服务器配置
+# 服务器配置ll
 UDP_HOST = '0.0.0.0'
 UDP_PORT = 8080
 WEB_PORT = 5000
