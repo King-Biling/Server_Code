@@ -24,7 +24,7 @@ BROADCAST_PORT = 8081  # 新增广播端口
 # 广播配置
 broadcast_enabled = False
 broadcast_interval = 0.07  # 50ms
-broadcast_group_size = 2  # 每组最多广播的小车数量
+broadcast_group_size = 1  # 每组最多广播的小车数量
 
 # 通信拓扑配置
 communication_topology = [
