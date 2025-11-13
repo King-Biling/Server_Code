@@ -101,8 +101,10 @@ def start_formation():
 
         if car_id == leader_id:
             # 领航者指令：开始指令 + 角色指令
-            start_cmd = f"FORMATION:START,{leader_id},{formation_type}"
-            leader_role_cmd = f"FORMATION:LEADER,{formation_type}"
+             # 新格式: 开始编队指令 [F,S,CAR1,line]
+            start_cmd = f"[F,S,{leader_id},{formation_type}]"
+            # 新格式: 设置领航者 [F,L,CAR1]
+            leader_role_cmd = f"[F,L,{car_id}]"
 
             # 发送开始指令
             if send_formation_command(car_id, start_cmd):
@@ -113,9 +115,10 @@ def start_formation():
                     success_count += 1
         else:
             # 跟随者指令：开始指令 + 角色指令 + 偏移量
-            start_cmd = f"FORMATION:START,{leader_id},{formation_type}"
+            start_cmd = f"[F,S,{leader_id},{formation_type}]"
+             # 新格式: 设置跟随者 [F,F,CAR1,0.5,0.0,0.0]
             offset = formation_offsets.get(car_id, {"x": 0, "y": 0, "yaw": 0})
-            follower_cmd = f"FORMATION:FOLLOWER,{leader_id},{offset['x']},{offset['y']},{offset['yaw']}"
+            follower_cmd = f"[F,F,{leader_id},{offset['x']},{offset['y']},{offset['yaw']}]"
 
             # 发送开始指令
             if send_formation_command(car_id, start_cmd):
@@ -128,9 +131,11 @@ def start_formation():
     # 如果原来的领航者现在变成了跟随者，需要特别处理
     if old_leader and old_leader != leader_id and old_leader in cars_dict:
         if cars_dict[old_leader].connected:
-            start_cmd = f"FORMATION:START,{leader_id},{formation_type}"
-            offset = formation_offsets.get(old_leader, {"x": 0, "y": 0, "yaw": 0})
-            follower_cmd = f"FORMATION:FOLLOWER,{leader_id},{offset['x']},{offset['y']},{offset['yaw']}"
+             # 新格式: 开始编队指令 [F,S,CAR1,line]
+            start_cmd = f"[F,S,{leader_id},{formation_type}]"
+            # 新格式: 设置跟随者 [F,F,CAR1,0.5,0.0,0.0]
+            offset = formation_offsets.get(car_id, {"x": 0, "y": 0, "yaw": 0})
+            follower_cmd = f"[F,F,{leader_id},{offset['x']},{offset['y']},{offset['yaw']}]"
 
             if send_formation_command(old_leader, start_cmd) and send_formation_command(old_leader, follower_cmd):
                 print(f"🔄 原领航者 {old_leader} 转换为跟随者")
@@ -155,8 +160,8 @@ def stop_formation():
     """停止编队控制 - 使用单播发送停止指令"""
     global formation_enabled
 
-    # 使用单播向所有小车发送停止编队指令
-    stop_cmd = "FORMATION:STOP"
+    # 新格式: 停止编队 [F,T]
+    stop_cmd = "[F,T]"
     success_count = 0
     total_cars = 0
 
@@ -283,7 +288,8 @@ def update_formation_offsets():
     for car_id, offset in new_offsets.items():
         if car_id in cars_dict and car_id != formation_leader and cars_dict[car_id].connected:
             total_cars += 1
-            update_cmd = f"FORMATION:UPDATE,{formation_leader},{offset['x']},{offset['y']},{offset['yaw']}"
+            # 新格式: 更新偏移 [F,U,CAR1,0.3,0.2,0.0]
+            update_cmd = f"[F,U,{formation_leader},{offset['x']},{offset['y']},{offset['yaw']}]"
             if send_formation_command(car_id, update_cmd):
                 print(f"🔄 向小车 {car_id} 发送偏移更新: {update_cmd}")
                 success_count += 1

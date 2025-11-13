@@ -670,7 +670,8 @@ def control_car_position():
     if not car_id or not position:
         return jsonify({'success': False, 'error': '缺少参数'})
 
-    cmd_str = f"CTRL:{car_id},TARGET:{position.get('x', 0):.2f},{position.get('y', 0):.2f},{heading:.1f}"
+    # 新格式: [C,CAR1,1.5,2.3,45.0]
+    cmd_str = f"[C,{car_id},{position.get('x', 0):.2f},{position.get('y', 0):.2f},{heading:.1f}]"
     success = udp_server.send_to_car_reliable(car_id, cmd_str, max_retries=4)
 
     if success:
@@ -695,11 +696,12 @@ def set_topology():
             topology_enabled = enable
             update_topology_cache()
 
-            # 将拓扑矩阵转换为紧凑的字符串格式：1,1,1,1;1,0,1,0;1,1,0,1;1,0,1,0
-            topology_str = ';'.join(','.join(str(cell) for cell in row) for row in communication_topology)
-
-            # 使用广播发送拓扑指令（重复5次）
-            topology_cmd = f"TOPOLOGY:{topology_str}"
+            # 新格式: [T,M,1,1,1,1,1,0,1,1,1,1,0,1,1,1,1,0]
+            topology_flat = []
+            for row in communication_topology:
+                topology_flat.extend(row)
+            topology_str = ','.join(str(cell) for cell in topology_flat)
+            topology_cmd = f"[T,M,{topology_str}]"
             success = udp_server.broadcast_global_command(topology_cmd)
 
             print(f"✅ 通信拓扑已更新: {communication_topology}")
@@ -738,8 +740,8 @@ def toggle_topology():
 
     update_topology_cache()
 
-    # 使用广播发送拓扑切换指令（重复5次）
-    toggle_cmd = f"TOPOLOGY_TOGGLE:{enable}"
+     # 新格式: [T,E,1] 或 [T,E,0]
+    toggle_cmd = f"[T,E,{1 if enable else 0}]"
     broadcast_success = udp_server.broadcast_global_command(toggle_cmd)
 
     print(f"🔗 拓扑通信 {status}")
