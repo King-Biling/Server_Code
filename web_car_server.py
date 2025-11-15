@@ -8,6 +8,7 @@ from flask_cors import CORS
 from formation_controller import formation_bp, init_formation_controller  # 新增导入
 
 app = Flask(__name__)
+app.config['TEMPLATES_AUTO_RELOAD'] = True  # 设置模板自动重新加载
 CORS(app)
 app.register_blueprint(formation_bp)  # 注册编队控制器蓝图
 
@@ -29,9 +30,9 @@ broadcast_group_size = 1  # 每组最多广播的小车数量
 # 通信拓扑配置
 communication_topology = [
     [0, 1, 1, 1],
-    [1, 0, 1, 1],
-    [1, 1, 0, 1],
-    [1, 1, 1, 0]
+    [0, 0, 0, 0],
+    [0, 0, 0, 0],
+    [0, 0, 0, 0]
 ]
 
 topology_enabled = False
@@ -416,8 +417,7 @@ class UDPServer:
 
     def _get_visible_cars_for_car(self, target_car_id):
         """获取目标小车可以看到的其他小车列表"""
-        if not topology_enabled:
-            return ["CAR1", "CAR2", "CAR3", "CAR4"]
+        # 总是返回基于 communication_topology 的可见性，无论拓扑是否启用
         return topology_cache.get(target_car_id, [])
 
     def _health_check_loop(self):
@@ -519,27 +519,20 @@ udp_server = UDPServer(UDP_HOST, UDP_PORT)
 def update_topology_cache():
     global topology_cache
 
-    if not topology_enabled:
-        topology_cache = {
-            "CAR1": ["CAR2", "CAR3", "CAR4"],
-            "CAR2": ["CAR1", "CAR3", "CAR4"],
-            "CAR3": ["CAR1", "CAR2", "CAR4"],
-            "CAR4": ["CAR1", "CAR2", "CAR3"]
-        }
-    else:
-        topology_cache = {}
-        car_ids = ["CAR1", "CAR2", "CAR3", "CAR4"]
-        car_mapping = {"CAR1": 0, "CAR2": 1, "CAR3": 2, "CAR4": 3}
+    # 无论拓扑是否启用，都使用 communication_topology 矩阵来计算可见性
+    topology_cache = {}
+    car_ids = ["CAR1", "CAR2", "CAR3", "CAR4"]
+    car_mapping = {"CAR1": 0, "CAR2": 1, "CAR3": 2, "CAR4": 3}
 
-        for target_car in car_ids:
-            visible_cars = []
-            target_index = car_mapping[target_car]
-            for other_car in car_ids:
-                if other_car != target_car:
-                    other_index = car_mapping[other_car]
-                    if communication_topology[other_index][target_index] == 1:
-                        visible_cars.append(other_car)
-            topology_cache[target_car] = visible_cars
+    for target_car in car_ids:
+        visible_cars = []
+        target_index = car_mapping[target_car]
+        for other_car in car_ids:
+            if other_car != target_car:
+                other_index = car_mapping[other_car]
+                if communication_topology[other_index][target_index] == 1:
+                    visible_cars.append(other_car)
+        topology_cache[target_car] = visible_cars
 
     print(f"🔧 拓扑缓存已更新: {topology_cache}")
 
@@ -812,6 +805,8 @@ if __name__ == '__main__':
         print(f"💡 请确保小车配置中的SERVER_IP设置为: {local_ip}")
         print(f"💡 访问 http://{local_ip}:{WEB_PORT} 打开控制界面")
 
-        app.run(host='0.0.0.0', port=WEB_PORT, debug=False, use_reloader=False, threaded=True)
+       # app.run(host='0.0.0.0', port=WEB_PORT, debug=False, use_reloader=False, threaded=True)
+        app.run(host='0.0.0.0', port=WEB_PORT, debug=True, use_reloader=True, threaded=True)
+        
     else:
         print("❌ UDP服务器启动失败")

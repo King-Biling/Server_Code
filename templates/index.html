@@ -562,7 +562,7 @@
         <!-- 坐标图区域 -->
         <div class="coordinate-map">
             <div class="map-header">
-                <h1>🚗实时位置观测🚗</h1>
+                <h1>实时位置观测</h1>
                 <div id="coordinateRangeDisplay">坐标范围: X[-6, 6], Y[-6, 6] | 角度: 0°=X轴正方向, 逆时针增加</div>
             </div>
             <canvas id="coordinateCanvas"></canvas>
@@ -740,26 +740,26 @@
 
                                                     <div class="matrix-header">C1</div>
                                                     <div class="matrix-cell"><input type="number" id="a11" class="coord-input" value="0" min="0" max="1" readonly style="background: #f0f0f0;"></div>
-                                                    <div class="matrix-cell"><input type="number" id="a12" class="coord-input" value="1" min="0" max="1"></div>
-                                                    <div class="matrix-cell"><input type="number" id="a13" class="coord-input" value="1" min="0" max="1"></div>
-                                                    <div class="matrix-cell"><input type="number" id="a14" class="coord-input" value="1" min="0" max="1"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a12" class="coord-input" value="0" min="0" max="1"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a13" class="coord-input" value="0" min="0" max="1"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a14" class="coord-input" value="0" min="0" max="1"></div>
 
                                                     <div class="matrix-header">C2</div>
                                                     <div class="matrix-cell"><input type="number" id="a21" class="coord-input" value="1" min="0" max="1"></div>
                                                     <div class="matrix-cell"><input type="number" id="a22" class="coord-input" value="0" min="0" max="1" readonly style="background: #f0f0f0;"></div>
-                                                    <div class="matrix-cell"><input type="number" id="a23" class="coord-input" value="1" min="0" max="1"></div>
-                                                    <div class="matrix-cell"><input type="number" id="a24" class="coord-input" value="1" min="0" max="1"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a23" class="coord-input" value="0" min="0" max="1"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a24" class="coord-input" value="0" min="0" max="1"></div>
 
                                                     <div class="matrix-header">C3</div>
                                                     <div class="matrix-cell"><input type="number" id="a31" class="coord-input" value="1" min="0" max="1"></div>
-                                                    <div class="matrix-cell"><input type="number" id="a32" class="coord-input" value="1" min="0" max="1"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a32" class="coord-input" value="0" min="0" max="1"></div>
                                                     <div class="matrix-cell"><input type="number" id="a33" class="coord-input" value="0" min="0" max="1" readonly style="background: #f0f0f0;"></div>
-                                                    <div class="matrix-cell"><input type="number" id="a34" class="coord-input" value="1" min="0" max="1"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a34" class="coord-input" value="0" min="0" max="1"></div>
 
                                                     <div class="matrix-header">C4</div>
                                                     <div class="matrix-cell"><input type="number" id="a41" class="coord-input" value="1" min="0" max="1"></div>
-                                                    <div class="matrix-cell"><input type="number" id="a42" class="coord-input" value="1" min="0" max="1"></div>
-                                                    <div class="matrix-cell"><input type="number" id="a43" class="coord-input" value="1" min="0" max="1"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a42" class="coord-input" value="0" min="0" max="1"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a43" class="coord-input" value="0" min="0" max="1"></div>
                                                     <div class="matrix-cell"><input type="number" id="a44" class="coord-input" value="0" min="0" max="1" readonly style="background: #f0f0f0;"></div>
                                                 </div>
                                                 <div style="font-size: 9px; color: #666; text-align: center; margin-top: 3px;">
@@ -1957,6 +1957,7 @@
             // 获取拓扑状态
             getTopologyStatus();
 
+            updateVisibilityInfo();
             // 定期更新拓扑状态
             setInterval(getTopologyStatus, 5000);
 
