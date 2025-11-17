@@ -371,8 +371,32 @@ class UDPServer:
 
         try:
             # 根据拓扑矩阵过滤需要广播的小车
-            cars_to_broadcast = self._filter_cars_by_topology(connected_cars)
+            cars_to_broadcast = {}
             
+            if topology_enabled:
+                # 拓扑矩阵映射
+                car_mapping = {"CAR1": 0, "CAR2": 1, "CAR3": 2, "CAR4": 3}
+                
+                for car_id, car in connected_cars.items():
+                    if car_id not in car_mapping:
+                        # 未知的小车ID，默认广播
+                        cars_to_broadcast[car_id] = car
+                        continue
+                        
+                    car_index = car_mapping[car_id]
+                    
+                    # 检查该小车对应的行是否有1（这辆小车需要给其他小车发送数据）
+                    # 简单方法：检查行元素和是否大于0
+                    row_sum = sum(communication_topology[car_index])
+                    if row_sum > 0:
+                        cars_to_broadcast[car_id] = car
+                        print(f"📡 拓扑过滤: {car_id} 需要给其他小车发送数据，包含在广播中")
+                    else:
+                        print(f"📡 拓扑过滤: {car_id} 不需要给任何小车发送数据，跳过广播")
+            else:
+                # 拓扑未启用，广播所有小车
+                cars_to_broadcast = connected_cars
+                
             if not cars_to_broadcast:
                 print("📡 根据拓扑矩阵，没有需要广播的小车数据")
                 return True
@@ -422,46 +446,7 @@ class UDPServer:
         except Exception as e:
             print(f"❌ 广播所有小车数据失败: {e}")
             return False
-
-    def _filter_cars_by_topology(self, connected_cars):
-        """根据拓扑矩阵过滤需要广播的小车数据"""
-        # 使用全局变量 topology_enabled 和 communication_topology
-        global topology_enabled, communication_topology
         
-        if not topology_enabled:
-            # 拓扑未启用，广播所有小车
-            return connected_cars
-        
-        # 如果拓扑启用，检查哪些小车的数据需要被广播
-        # 规则：如果某辆小车在拓扑矩阵中对应的行全为0，说明它不需要给任何小车发数据，就不广播
-        cars_to_broadcast = {}
-        
-        # 拓扑矩阵映射
-        car_mapping = {"CAR1": 0, "CAR2": 1, "CAR3": 2, "CAR4": 3}
-        
-        for car_id, car in connected_cars.items():
-            if car_id not in car_mapping:
-                # 未知的小车ID，默认广播
-                cars_to_broadcast[car_id] = car
-                continue
-                
-            car_index = car_mapping[car_id]
-            
-            # 检查拓扑矩阵中这辆小车是否需要给其他小车发送数据
-            # 即检查该小车对应的行是否有1（这辆小车需要给其他小车发送数据）
-            needs_to_send = False
-            for j in range(4):  # 遍历所有列
-                if j != car_index and communication_topology[car_index][j] == 1:
-                    needs_to_send = True
-                    break
-            
-            if needs_to_send:
-                cars_to_broadcast[car_id] = car
-                print(f"📡 拓扑过滤: {car_id} 需要给其他小车发送数据，包含在广播中")
-            else:
-                print(f"📡 拓扑过滤: {car_id} 不需要给任何小车发送数据，跳过广播")
-        
-        return cars_to_broadcast
     def _get_visible_cars_for_car(self, target_car_id):
         """获取目标小车可以看到的其他小车列表"""
         if not topology_enabled:
