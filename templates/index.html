@@ -562,7 +562,7 @@
         <!-- 坐标图区域 -->
         <div class="coordinate-map">
             <div class="map-header">
-                <h1>🚗实时位置观测🚗</h1>
+                <h1>实时位置观测</h1>
                 <div id="coordinateRangeDisplay">坐标范围: X[-6, 6], Y[-6, 6] | 角度: 0°=X轴正方向, 逆时针增加</div>
             </div>
             <canvas id="coordinateCanvas"></canvas>
@@ -650,9 +650,9 @@
                                         <div class="control-section" id="customFormationSection" style="display: none;">
                                             <h3>自定义编队偏移</h3>
                                             <div style="font-size: 10px; color: #666; margin-bottom: 6px;">
-                                                格式: {"CAR2": {"x": 0.5, "y": 0, "yaw": 0}, "CAR3": {"x": 0, "y": 0.5, "yaw": 0}}
+                                                格式: {"CAR2": {"x": 0.7, "y": 0, "yaw": 0}, "CAR3": {"x": 0, "y": 0.7, "yaw": 0}}
                                             </div>
-                                            <textarea id="customOffsets" class="coord-input" rows="3" placeholder='{"CAR2": {"x": -0.5, "y": 0, "yaw": 0}, "CAR3": {"x": -1.0, "y": 0, "yaw": 0}, "CAR4": {"x": -1.5, "y": 0, "yaw": 0}}' style="width: 100%; font-size: 10px;"></textarea>
+                                            <textarea id="customOffsets" class="coord-input" rows="3" placeholder='{"CAR2": {"x": -0.7, "y": 0, "yaw": 0}, "CAR3": {"x": -1.4, "y": 0, "yaw": 0}, "CAR4": {"x": -2.1, "y": 0, "yaw": 0}}' style="width: 100%; font-size: 10px;"></textarea>
                                             <button class="action-btn" onclick="setCustomFormation()" style="margin-top: 6px;">设置自定义编队</button>
                                         </div>
 
@@ -740,26 +740,26 @@
 
                                                     <div class="matrix-header">C1</div>
                                                     <div class="matrix-cell"><input type="number" id="a11" class="coord-input" value="0" min="0" max="1" readonly style="background: #f0f0f0;"></div>
-                                                    <div class="matrix-cell"><input type="number" id="a12" class="coord-input" value="1" min="0" max="1"></div>
-                                                    <div class="matrix-cell"><input type="number" id="a13" class="coord-input" value="1" min="0" max="1"></div>
-                                                    <div class="matrix-cell"><input type="number" id="a14" class="coord-input" value="1" min="0" max="1"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a12" class="coord-input" value="0" min="0" max="1"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a13" class="coord-input" value="0" min="0" max="1"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a14" class="coord-input" value="0" min="0" max="1"></div>
 
                                                     <div class="matrix-header">C2</div>
                                                     <div class="matrix-cell"><input type="number" id="a21" class="coord-input" value="1" min="0" max="1"></div>
                                                     <div class="matrix-cell"><input type="number" id="a22" class="coord-input" value="0" min="0" max="1" readonly style="background: #f0f0f0;"></div>
-                                                    <div class="matrix-cell"><input type="number" id="a23" class="coord-input" value="1" min="0" max="1"></div>
-                                                    <div class="matrix-cell"><input type="number" id="a24" class="coord-input" value="1" min="0" max="1"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a23" class="coord-input" value="0" min="0" max="1"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a24" class="coord-input" value="0" min="0" max="1"></div>
 
                                                     <div class="matrix-header">C3</div>
                                                     <div class="matrix-cell"><input type="number" id="a31" class="coord-input" value="1" min="0" max="1"></div>
-                                                    <div class="matrix-cell"><input type="number" id="a32" class="coord-input" value="1" min="0" max="1"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a32" class="coord-input" value="0" min="0" max="1"></div>
                                                     <div class="matrix-cell"><input type="number" id="a33" class="coord-input" value="0" min="0" max="1" readonly style="background: #f0f0f0;"></div>
-                                                    <div class="matrix-cell"><input type="number" id="a34" class="coord-input" value="1" min="0" max="1"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a34" class="coord-input" value="0" min="0" max="1"></div>
 
                                                     <div class="matrix-header">C4</div>
                                                     <div class="matrix-cell"><input type="number" id="a41" class="coord-input" value="1" min="0" max="1"></div>
-                                                    <div class="matrix-cell"><input type="number" id="a42" class="coord-input" value="1" min="0" max="1"></div>
-                                                    <div class="matrix-cell"><input type="number" id="a43" class="coord-input" value="1" min="0" max="1"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a42" class="coord-input" value="0" min="0" max="1"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a43" class="coord-input" value="0" min="0" max="1"></div>
                                                     <div class="matrix-cell"><input type="number" id="a44" class="coord-input" value="0" min="0" max="1" readonly style="background: #f0f0f0;"></div>
                                                 </div>
                                                 <div style="font-size: 9px; color: #666; text-align: center; margin-top: 3px;">
@@ -1669,21 +1669,21 @@
             const defaults = {
                 'line': {
                     'CAR1': {x: 0, y: 0},
-                    'CAR2': {x: -0.5, y: 0},
-                    'CAR3': {x: -1.0, y: 0},
-                    'CAR4': {x: -1.5, y: 0}
+                    'CAR2': {x: -0.7, y: 0},
+                    'CAR3': {x: -1.4, y: 0},
+                    'CAR4': {x: -2.1, y: 0}
                 },
                 'triangle': {
                     'CAR1': {x: 0, y: 0},
-                    'CAR2': {x: -0.5, y: -0.5},
-                    'CAR3': {x: -0.5, y: 0.5},
-                    'CAR4': {x: -1.0, y: 0}
+                    'CAR2': {x: -0.7, y: -0.7},
+                    'CAR3': {x: -0.7, y: 0.7},
+                    'CAR4': {x: -1.4, y: 0}
                 },
                 'square': {
                     'CAR1': {x: 0, y: 0},
-                    'CAR2': {x: 0, y: -0.5},
-                    'CAR3': {x: -0.5, y: -0.5},
-                    'CAR4': {x: -0.5, y: 0}
+                    'CAR2': {x: 0, y: -0.7},
+                    'CAR3': {x: -0.7, y: -0.7},
+                    'CAR4': {x: -0.7, y: 0}
                 }
             };
 

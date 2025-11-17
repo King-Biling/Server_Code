@@ -29,9 +29,9 @@ broadcast_group_size = 1  # 每组最多广播的小车数量
 # 通信拓扑配置
 communication_topology = [
     [0, 1, 1, 1],
-    [1, 0, 1, 1],
-    [1, 1, 0, 1],
-    [1, 1, 1, 0]
+    [0, 0, 0, 0],
+    [0, 0, 0, 0],
+    [0, 0, 0, 0]
 ]
 
 topology_enabled = False
@@ -518,28 +518,19 @@ udp_server = UDPServer(UDP_HOST, UDP_PORT)
 # 拓扑缓存更新函数
 def update_topology_cache():
     global topology_cache
+    topology_cache = {}
+    car_ids = ["CAR1", "CAR2", "CAR3", "CAR4"]
+    car_mapping = {"CAR1": 0, "CAR2": 1, "CAR3": 2, "CAR4": 3}
 
-    if not topology_enabled:
-        topology_cache = {
-            "CAR1": ["CAR2", "CAR3", "CAR4"],
-            "CAR2": ["CAR1", "CAR3", "CAR4"],
-            "CAR3": ["CAR1", "CAR2", "CAR4"],
-            "CAR4": ["CAR1", "CAR2", "CAR3"]
-        }
-    else:
-        topology_cache = {}
-        car_ids = ["CAR1", "CAR2", "CAR3", "CAR4"]
-        car_mapping = {"CAR1": 0, "CAR2": 1, "CAR3": 2, "CAR4": 3}
-
-        for target_car in car_ids:
-            visible_cars = []
-            target_index = car_mapping[target_car]
-            for other_car in car_ids:
-                if other_car != target_car:
-                    other_index = car_mapping[other_car]
-                    if communication_topology[other_index][target_index] == 1:
-                        visible_cars.append(other_car)
-            topology_cache[target_car] = visible_cars
+    for target_car in car_ids:
+        visible_cars = []
+        target_index = car_mapping[target_car]
+        for other_car in car_ids:
+            if other_car != target_car:
+                other_index = car_mapping[other_car]
+                if communication_topology[other_index][target_index] == 1:
+                    visible_cars.append(other_car)
+        topology_cache[target_car] = visible_cars
 
     print(f"🔧 拓扑缓存已更新: {topology_cache}")
 
@@ -553,21 +544,21 @@ formation_type = "line"
 FORMATION_CONFIGS = {
     "line": {
         "CAR1": {"x": 0, "y": 0, "yaw": 0},
-        "CAR2": {"x": -0.5, "y": 0, "yaw": 0},
-        "CAR3": {"x": -1.0, "y": 0, "yaw": 0},
-        "CAR4": {"x": -1.5, "y": 0, "yaw": 0}
+        "CAR2": {"x": -0.7, "y": 0, "yaw": 0},
+        "CAR3": {"x": -1.4, "y": 0, "yaw": 0},
+        "CAR4": {"x": -2.1, "y": 0, "yaw": 0}
     },
     "triangle": {
         "CAR1": {"x": 0, "y": 0, "yaw": 0},
-        "CAR2": {"x": -0.5, "y": -0.5, "yaw": 0},
-        "CAR3": {"x": -0.5, "y": 0.5, "yaw": 0},
-        "CAR4": {"x": -1.0, "y": 0, "yaw": 0}
+        "CAR2": {"x": -0.7, "y": -0.7, "yaw": 0},
+        "CAR3": {"x": -0.7, "y": 0.7, "yaw": 0},
+        "CAR4": {"x": -1.4, "y": 0, "yaw": 0}
     },
     "square": {
         "CAR1": {"x": 0, "y": 0, "yaw": 0},
-        "CAR2": {"x": 0, "y": -0.5, "yaw": 0},
-        "CAR3": {"x": -0.5, "y": -0.5, "yaw": 0},
-        "CAR4": {"x": -0.5, "y": 0, "yaw": 0}
+        "CAR2": {"x": 0, "y": -0.7, "yaw": 0},
+        "CAR3": {"x": -0.7, "y": -0.7, "yaw": 0},
+        "CAR4": {"x": -0.7, "y": 0, "yaw": 0}
     }
 }
 
