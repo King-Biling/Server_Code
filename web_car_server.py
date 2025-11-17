@@ -353,7 +353,7 @@ class UDPServer:
         return groups
 
     def _broadcast_all_cars_data(self):
-        """使用子网广播发送所有小车数据 - 分组发送"""
+        """使用子网广播发送所有小车数据 - 根据拓扑矩阵过滤不需要的数据"""
         current_time = time.time()
         connected_cars = {}
 
@@ -370,11 +370,20 @@ class UDPServer:
             return False
 
         try:
-            # 将小车分成多个组
-            car_groups = self._split_cars_into_groups(connected_cars)
+            # 根据拓扑矩阵过滤需要广播的小车
+            cars_to_broadcast = self._filter_cars_by_topology(connected_cars)
+            
+            if not cars_to_broadcast:
+                print("📡 根据拓扑矩阵，没有需要广播的小车数据")
+                return True
+
+            print(f"📡 拓扑过滤后需要广播的小车: {list(cars_to_broadcast.keys())}")
+
+            # 将需要广播的小车分成多个组
+            car_groups = self._split_cars_into_groups(cars_to_broadcast)
             total_groups = len(car_groups)
 
-            print(f"📡 将 {len(connected_cars)} 辆小车分成 {total_groups} 组进行广播")
+            print(f"📡 将 {len(cars_to_broadcast)} 辆小车分成 {total_groups} 组进行广播")
 
             all_success = True
 
@@ -413,6 +422,43 @@ class UDPServer:
         except Exception as e:
             print(f"❌ 广播所有小车数据失败: {e}")
             return False
+
+    def _filter_cars_by_topology(self, connected_cars):
+        """根据拓扑矩阵过滤需要广播的小车数据"""
+        if not topology_enabled:
+            # 拓扑未启用，广播所有小车
+            return connected_cars
+        
+        # 如果拓扑启用，检查哪些小车的数据需要被广播
+        # 规则：如果某辆小车在拓扑矩阵中对应的行全为0，说明没有小车需要它的数据，就不广播
+        cars_to_broadcast = {}
+        
+        # 拓扑矩阵映射
+        car_mapping = {"CAR1": 0, "CAR2": 1, "CAR3": 2, "CAR4": 3}
+        
+        for car_id, car in connected_cars.items():
+            if car_id not in car_mapping:
+                # 未知的小车ID，默认广播
+                cars_to_broadcast[car_id] = car
+                continue
+                
+            car_index = car_mapping[car_id]
+            
+            # 检查拓扑矩阵中是否有其他小车需要这辆小车的数据
+            # 即检查该小车对应的列是否有1（其他小车能看到这辆小车）
+            has_visible = False
+            for i in range(4):  # 遍历所有行
+                if i != car_index and communication_topology[i][car_index] == 1:
+                    has_visible = True
+                    break
+            
+            if has_visible:
+                cars_to_broadcast[car_id] = car
+                print(f"📡 拓扑过滤: {car_id} 被其他小车需要，包含在广播中")
+            else:
+                print(f"📡 拓扑过滤: {car_id} 没有被任何小车需要，跳过广播")
+        
+        return cars_to_broadcast
 
     def _get_visible_cars_for_car(self, target_car_id):
         """获取目标小车可以看到的其他小车列表"""
