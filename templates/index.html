@@ -619,7 +619,7 @@
                                                 <label>队形:</label>
                                                 <select id="formationType" class="coord-input">
                                                     <option value="line">直线编队</option>
-                                                    <option value="triangle">三角编队</option>
+                                                    <option value="Diamond">菱形编队</option>
                                                     <option value="square">方形编队</option>
                                                     <option value="custom">自定义</option>
                                                 </select>
@@ -638,7 +638,7 @@
                                             <h3>预设队形</h3>
                                             <div style="display: flex; gap: 6px; margin-bottom: 8px;">
                                                 <button class="action-btn" onclick="loadFormationPreview('line')" style="font-size: 10px; padding: 4px;">直线</button>
-                                                <button class="action-btn" onclick="loadFormationPreview('triangle')" style="font-size: 10px; padding: 4px;">三角</button>
+                                                <button class="action-btn" onclick="loadFormationPreview('Diamond')" style="font-size: 10px; padding: 4px;">菱形</button>
                                                 <button class="action-btn" onclick="loadFormationPreview('square')" style="font-size: 10px; padding: 4px;">方形</button>
                                             </div>
                                             <div id="formationPreview" style="font-size: 9px; color: #666; background: #f8f9fa; padding: 6px; border-radius: 4px; min-height: 40px;">
@@ -1673,7 +1673,7 @@
                     'CAR3': {x: -1.4, y: 0},
                     'CAR4': {x: -2.1, y: 0}
                 },
-                'triangle': {
+                'Diamond': {
                     'CAR1': {x: 0, y: 0},
                     'CAR2': {x: -0.7, y: -0.7},
                     'CAR3': {x: -0.7, y: 0.7},

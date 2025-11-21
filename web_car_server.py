@@ -581,7 +581,7 @@ FORMATION_CONFIGS = {
         "CAR3": {"x": -1.4, "y": 0, "yaw": 0},
         "CAR4": {"x": -2.1, "y": 0, "yaw": 0}
     },
-    "triangle": {
+    "Diamond": {
         "CAR1": {"x": 0, "y": 0, "yaw": 0},
         "CAR2": {"x": -0.7, "y": -0.7, "yaw": 0},
         "CAR3": {"x": -0.7, "y": 0.7, "yaw": 0},

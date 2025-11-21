@@ -13,7 +13,7 @@ formation_bp = Blueprint('formation', __name__)
 # 编队控制变量
 formation_enabled = False
 formation_leader = None
-formation_type = "line"  # line, triangle, square, custom
+formation_type = "line"  # line, Diamond, square, custom
 formation_params = {}
 cars_dict = {}  # 将在初始化时从主程序传入
 udp_server = None  # 将在初始化时传入UDP服务器实例
@@ -26,7 +26,7 @@ FORMATION_CONFIGS = {
         "CAR3": {"x": -1.4, "y": 0, "yaw": 0},
         "CAR4": {"x": -2.1, "y": 0, "yaw": 0}
     },
-    "triangle": {
+    "Diamond": {
         "CAR1": {"x": 0, "y": 0, "yaw": 0},
         "CAR2": {"x": -0.7, "y": -0.7, "yaw": 0},
         "CAR3": {"x": -0.7, "y": 0.7, "yaw": 0},
