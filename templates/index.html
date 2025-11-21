@@ -556,6 +556,29 @@
             flex: 1;
             overflow-y: auto;
         }
+
+        /* 队形预览样式 */
+        .formation-preview-container {
+            margin-top: 10px;
+            text-align: center;
+            width: 100%;
+        }
+        
+        #formationPreviewCanvas {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: #f8f9fa;
+            margin: 5px auto;
+            display: block;
+            width: 100%;
+            height: 150px;
+        }
+        
+        .preview-info {
+            font-size: 10px;
+            color: #666;
+            margin-top: 3px;
+        }
     </style>
 </head>
 <body>
@@ -621,14 +644,19 @@
 
                                         <!-- 预设队形预览 -->
                                         <div class="control-section">
-                                            <h3>预设队形</h3>
+                                            <h3>预设队形预览</h3>
                                             <div style="display: flex; gap: 6px; margin-bottom: 8px;">
                                                 <button class="action-btn" onclick="loadFormationPreview('line')" style="font-size: 10px; padding: 4px;">直线</button>
                                                 <button class="action-btn" onclick="loadFormationPreview('Diamond')" style="font-size: 10px; padding: 4px;">菱形</button>
                                                 <button class="action-btn" onclick="loadFormationPreview('square')" style="font-size: 10px; padding: 4px;">方形</button>
                                             </div>
-                                            <div id="formationPreview" style="font-size: 9px; color: #666; background: #f8f9fa; padding: 6px; border-radius: 4px; min-height: 40px;">
-                                                选择队形查看详情...
+                                            
+                                            <!-- 队形预览画布 -->
+                                            <div class="formation-preview-container">
+                                                <canvas id="formationPreviewCanvas"></canvas>
+                                                <div class="preview-info" id="formationPreviewInfo">
+                                                    选择队形查看预览...
+                                                </div>
                                             </div>
                                         </div>
 
@@ -828,10 +856,37 @@
             maxY: 6     // Y轴最大值
         };
 
-        // 计算坐标范围显示文本
-        function getCoordinateRangeText() {
-            return `坐标范围: X[${COORDINATE_RANGE.minX}, ${COORDINATE_RANGE.maxX}], Y[${COORDINATE_RANGE.minY}, ${COORDINATE_RANGE.maxY}] | 角度: 0°=X轴正方向, 逆时针增加`;
-        }
+        // ==================== 队形预览配置 ====================
+        const FORMATION_PREVIEW_CONFIG = {
+            canvasWidth: 0, // 将根据容器宽度自动设置
+            canvasHeight: 150,
+            previewRange: 2, // 预览范围 ±2米
+            carSize: 5,      // 小车显示大小
+            leaderColor: '#e74c3c', // 领航者颜色
+            followerColor: '#3498db' // 跟随者颜色
+        };
+
+        // 队形配置数据
+        const FORMATION_CONFIGS = {
+            'line': {
+                'CAR1': {x: 0, y: 0, yaw: 0},
+                'CAR2': {x: -0.7, y: 0, yaw: 0},
+                'CAR3': {x: -1.4, y: 0, yaw: 0},
+                'CAR4': {x: -2.1, y: 0, yaw: 0}
+            },
+            'Diamond': {
+                'CAR1': {x: 0, y: 0, yaw: 0},
+                'CAR2': {x: -0.7, y: -0.7, yaw: 0},
+                'CAR3': {x: -0.7, y: 0.7, yaw: 0},
+                'CAR4': {x: -1.4, y: 0, yaw: 0}
+            },
+            'square': {
+                'CAR1': {x: 0, y: 0, yaw: 0},
+                'CAR2': {x: 0, y: -0.7, yaw: 0},
+                'CAR3': {x: -0.7, y: -0.7, yaw: 0},
+                'CAR4': {x: -0.7, y: 0, yaw: 0}
+            }
+        };
 
         // ==================== 其他变量 ====================
         // 小车数据
@@ -843,6 +898,137 @@
         let carPopup = document.getElementById('carPopup');
         let popupCarId = document.getElementById('popupCarId');
         let popupDetails = document.getElementById('popupDetails');
+        let formationPreviewCanvas, formationPreviewCtx;
+
+        // 初始化队形预览画布
+        function initFormationPreview() {
+            formationPreviewCanvas = document.getElementById('formationPreviewCanvas');
+            formationPreviewCtx = formationPreviewCanvas.getContext('2d');
+            
+            // 设置画布尺寸 - 宽度自适应容器
+            const containerWidth = formationPreviewCanvas.parentElement.offsetWidth;
+            FORMATION_PREVIEW_CONFIG.canvasWidth = containerWidth;
+            
+            formationPreviewCanvas.width = FORMATION_PREVIEW_CONFIG.canvasWidth;
+            formationPreviewCanvas.height = FORMATION_PREVIEW_CONFIG.canvasHeight;
+            
+            // 绘制初始预览
+            drawFormationPreview('line', 'CAR1');
+        }
+
+        // 绘制队形预览
+        function drawFormationPreview(formationType, leaderId) {
+            if (!formationPreviewCtx) return;
+            
+            const ctx = formationPreviewCtx;
+            const width = FORMATION_PREVIEW_CONFIG.canvasWidth;
+            const height = FORMATION_PREVIEW_CONFIG.canvasHeight;
+            const range = FORMATION_PREVIEW_CONFIG.previewRange;
+            
+            // 清空画布
+            ctx.clearRect(0, 0, width, height);
+            
+            // 绘制背景
+            ctx.fillStyle = '#f8f9fa';
+            ctx.fillRect(0, 0, width, height);
+            
+            // 绘制坐标轴
+            ctx.strokeStyle = '#ddd';
+            ctx.lineWidth = 1;
+            
+            // X轴
+            ctx.beginPath();
+            ctx.moveTo(0, height / 2);
+            ctx.lineTo(width, height / 2);
+            ctx.stroke();
+            
+            // Y轴
+            ctx.beginPath();
+            ctx.moveTo(width / 2, 0);
+            ctx.lineTo(width / 2, height);
+            ctx.stroke();
+            
+            // 获取队形配置
+            const formation = FORMATION_CONFIGS[formationType] || FORMATION_CONFIGS['line'];
+            
+            // 绘制小车
+            Object.keys(formation).forEach(carId => {
+                const car = formation[carId];
+                
+                // 坐标转换
+                const x = (car.x / (range * 2)) * width + width / 2 + 35;
+                const y = height / 2 - (car.y / (range * 2)) * height;
+                
+                // 设置颜色
+                ctx.fillStyle = carId === leaderId ? 
+                    FORMATION_PREVIEW_CONFIG.leaderColor : 
+                    FORMATION_PREVIEW_CONFIG.followerColor;
+                
+                // 绘制小车
+                ctx.beginPath();
+                ctx.arc(x, y, FORMATION_PREVIEW_CONFIG.carSize, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 绘制小车ID
+                ctx.fillStyle = carId === leaderId ? '#fff' : '#2c3e50';
+                ctx.font = 'bold 7px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(carId.replace('CAR', ''), x, y);
+                
+                // 如果是领航者，绘制特殊标记
+                if (carId === leaderId) {
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.arc(x, y, FORMATION_PREVIEW_CONFIG.carSize + 1, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+            });
+            
+            // 更新预览信息
+            document.getElementById('formationPreviewInfo').textContent = 
+                `${getFormationName(formationType)}队形 - 领航者: ${leaderId}`;
+        }
+
+        // 获取队形名称
+        function getFormationName(formationType) {
+            const names = {
+                'line': '直线',
+                'Diamond': '菱形',
+                'square': '方形',
+                'custom': '自定义'
+            };
+            return names[formationType] || formationType;
+        }
+
+        // 修改loadFormationPreview函数，添加预览绘制
+        async function loadFormationPreview(formationType) {
+            try {
+                const response = await fetch('/api/formation/configs');
+                const result = await response.json();
+
+                if (result.success && result.formation_configs[formationType]) {
+                    const config = result.formation_configs[formationType];
+                    
+                    // 绘制队形预览
+                    const leaderId = document.getElementById('leaderSelector').value;
+                    drawFormationPreview(formationType, leaderId);
+
+                    // 如果是自定义模式，填充到文本框
+                    if (formationType !== 'custom') {
+                        document.getElementById('customOffsets').value = JSON.stringify(config, null, 2);
+                    }
+                }
+            } catch (error) {
+                console.error('加载队形预览失败:', error);
+            }
+        }
+
+        // 计算坐标范围显示文本
+        function getCoordinateRangeText() {
+            return `坐标范围: X[${COORDINATE_RANGE.minX}, ${COORDINATE_RANGE.maxX}], Y[${COORDINATE_RANGE.minY}, ${COORDINATE_RANGE.maxY}] | 角度: 0°=X轴正方向, 逆时针增加`;
+        }
 
         // 网络状态检查
         function checkNetworkStatus() {
@@ -1063,29 +1249,43 @@
         }
 
         // ==================== 坐标转换函数 ====================
-        // 将坐标X转换为像素X（1:1比例，居中显示）
+        // 将坐标X转换为像素X（保持1:1比例，居中显示）
         function coordinateToPixelX(x) {
             const width = canvas.width;
+            const height = canvas.height;
+            
+            // 计算坐标范围
             const rangeX = COORDINATE_RANGE.maxX - COORDINATE_RANGE.minX;
             const rangeY = COORDINATE_RANGE.maxY - COORDINATE_RANGE.minY;
+            
+            // 确保横纵坐标比例1:1
             const scaleX = width / rangeX;
-            const scaleY = canvas.height / rangeY;
-            const scale = Math.min(scaleX, scaleY);
+            const scaleY = height / rangeY;
+            const scale = Math.min(scaleX, scaleY); // 取较小的比例确保内容完全显示
+            
+            // 计算居中偏移量
             const offsetX = (width - rangeX * scale) / 2;
-
+            
             return offsetX + (x - COORDINATE_RANGE.minX) * scale;
         }
 
-        // 将坐标Y转换为像素Y（1:1比例，居中显示）
+        // 将坐标Y转换为像素Y（保持1:1比例，居中显示）
         function coordinateToPixelY(y) {
+            const width = canvas.width;
             const height = canvas.height;
+            
+            // 计算坐标范围
             const rangeX = COORDINATE_RANGE.maxX - COORDINATE_RANGE.minX;
             const rangeY = COORDINATE_RANGE.maxY - COORDINATE_RANGE.minY;
-            const scaleX = canvas.width / rangeX;
+            
+            // 确保横纵坐标比例1:1
+            const scaleX = width / rangeX;
             const scaleY = height / rangeY;
-            const scale = Math.min(scaleX, scaleY);
+            const scale = Math.min(scaleX, scaleY); // 取较小的比例确保内容完全显示
+            
+            // 计算居中偏移量
             const offsetY = (height - rangeY * scale) / 2;
-
+            
             return height - offsetY - (y - COORDINATE_RANGE.minY) * scale;
         }
 
@@ -1832,31 +2032,6 @@
             }
         }
 
-        async function loadFormationPreview(formationType) {
-            try {
-                const response = await fetch('/api/formation/configs');
-                const result = await response.json();
-
-                if (result.success && result.formation_configs[formationType]) {
-                    const config = result.formation_configs[formationType];
-                    let previewHtml = `<strong>${formationType} 队形:</strong><br>`;
-
-                    for (const [carId, offset] of Object.entries(config)) {
-                        previewHtml += `${carId}: (${offset.x}, ${offset.y}, ${offset.yaw})<br>`;
-                    }
-
-                    document.getElementById('formationPreview').innerHTML = previewHtml;
-
-                    // 如果是自定义模式，填充到文本框
-                    if (formationType !== 'custom') {
-                        document.getElementById('customOffsets').value = JSON.stringify(config, null, 2);
-                    }
-                }
-            } catch (error) {
-                console.error('加载队形预览失败:', error);
-            }
-        }
-
         function updateFormationStatus(enabled, leaderId = '', formationType = '') {
             const statusElement = document.getElementById('formationStatus');
             if (enabled) {
@@ -1919,6 +2094,9 @@
 
         // 在页面加载时初始化
         document.addEventListener('DOMContentLoaded', function() {
+            // 初始化队形预览
+            initFormationPreview();
+            
             // 加载默认队形预览
             loadFormationPreview('line');
 
