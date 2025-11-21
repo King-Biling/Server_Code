@@ -559,21 +559,6 @@
 </head>
 <body>
     <div class="container">
-        <!-- 坐标图区域 -->
-        <div class="coordinate-map">
-            <div class="map-header">
-                <h1>实时位置观测</h1>
-                <div id="coordinateRangeDisplay">坐标范围: X[-6, 6], Y[-6, 6] | 角度: 0°=X轴正方向, 逆时针增加</div>
-            </div>
-            <canvas id="coordinateCanvas"></canvas>
-            <div class="performance-info" id="performanceInfo">
-                更新频率: 300ms | 小车: <span id="carCount">0</span>
-            </div>
-            <div class="angle-indicator">
-                角度系统: 0°=X轴正向, 逆时针增加
-            </div>
-        </div>
-
         <!-- 侧边栏 - 两列布局 -->
         <div class="sidebar">
             <div class="header">
@@ -797,7 +782,22 @@
 
             <!-- 系统状态 -->
             <div class="system-status">
-                更新日期: 2024 | 系统运行正常 | 在线小车: <span id="onlineCarCount">0</span> 台
+                更新日期: 2025 | 系统运行正常 | 在线小车: <span id="onlineCarCount">0</span> 台
+            </div>
+        </div>
+
+        <!-- 坐标图区域 -->
+        <div class="coordinate-map">
+            <div class="map-header">
+                <h1>实时位置观测</h1>
+                <div id="coordinateRangeDisplay">坐标范围: X[-6, 6], Y[-6, 6] | 角度: 0°=X轴正方向, 逆时针增加</div>
+            </div>
+            <canvas id="coordinateCanvas"></canvas>
+            <div class="performance-info" id="performanceInfo">
+                更新频率: 300ms | 小车: <span id="carCount">0</span>
+            </div>
+            <div class="angle-indicator">
+                角度系统: 0°=X轴正向, 逆时针增加
             </div>
         </div>
     </div>
