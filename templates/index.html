@@ -583,31 +583,27 @@
 </head>
 <body>
     <div class="container">
-        <!-- 侧边栏 - 两列布局 -->
         <div class="sidebar">
             <div class="header">
-                <h1>协同控制实验系统</h1>
+                <h1>智能群体机器人协同控制实验平台</h1>
             </div>
 
-            <!-- 添加滚动容器 -->
             <div class="sidebar-content">
                 <div class="sidebar-columns">
-                    <!-- 左侧列：小车状态 -->
                     <div class="sidebar-left">
                         <div class="collapsible-section">
                             <div class="section-header" onclick="toggleSection('carListSection')">
-                                小车状态监控
+                                智能小车监控
                             </div>
                             <div class="section-content expanded" id="carListSection">
                                 <div class="car-list left-panel-content" id="carList">
                                     <div class="no-cars" style="text-align: center; color: #718096; padding: 15px;">
-                                        等待小车连接...
+                                        等待连接...
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <!-- 添加编队控制 -->
-                            <div class="collapsible-section">
+                        <div class="collapsible-section">
                                 <div class="section-header" onclick="toggleSection('formationControlSection')">
                                     编队控制
                                 </div>
@@ -618,10 +614,10 @@
                                             <div style="margin-bottom: 8px;">
                                                 <label>领航者:</label>
                                                 <select id="leaderSelector" class="coord-input">
-                                                    <option value="CAR1">CAR1</option>
-                                                    <option value="CAR2">CAR2</option>
-                                                    <option value="CAR3">CAR3</option>
-                                                    <option value="CAR4">CAR4</option>
+                                                    <option value="CAR1">ROBOT#1</option>
+                                                    <option value="CAR2">ROBOT#2</option>
+                                                    <option value="CAR3">ROBOT#3</option>
+                                                    <option value="CAR4">ROBOT#4</option>
                                                 </select>
                                             </div>
                                             <div style="margin-bottom: 8px;">
@@ -642,7 +638,6 @@
                                             </div>
                                         </div>
 
-                                        <!-- 预设队形预览 -->
                                         <div class="control-section">
                                             <h3>预设队形预览</h3>
                                             <div style="display: flex; gap: 6px; margin-bottom: 8px;">
@@ -651,7 +646,6 @@
                                                 <button class="action-btn" onclick="loadFormationPreview('square')" style="font-size: 10px; padding: 4px;">方形</button>
                                             </div>
                                             
-                                            <!-- 队形预览画布 -->
                                             <div class="formation-preview-container">
                                                 <canvas id="formationPreviewCanvas"></canvas>
                                                 <div class="preview-info" id="formationPreviewInfo">
@@ -660,35 +654,30 @@
                                             </div>
                                         </div>
 
-                                        <!-- 自定义编队设置 -->
                                         <div class="control-section" id="customFormationSection" style="display: none;">
                                             <h3>自定义编队偏移</h3>
                                             <div style="font-size: 10px; color: #666; margin-bottom: 6px;">
-                                                格式: {"CAR2": {"x": 0.7, "y": 0, "yaw": 0}, "CAR3": {"x": 0, "y": 0.7, "yaw": 0}}
+                                                格式: {"CAR2": {"x": 0.7, "y": 0, "yaw": 0}...}
                                             </div>
                                             <textarea id="customOffsets" class="coord-input" rows="3" placeholder='{"CAR2": {"x": -0.7, "y": 0, "yaw": 0}, "CAR3": {"x": -1.4, "y": 0, "yaw": 0}, "CAR4": {"x": -2.1, "y": 0, "yaw": 0}}' style="width: 100%; font-size: 10px;"></textarea>
                                             <button class="action-btn" onclick="setCustomFormation()" style="margin-top: 6px;">设置自定义编队</button>
                                         </div>
 
-                                        <!-- 动态调整 -->
                                         <div class="control-section" id="dynamicAdjustSection" style="display: none;">
                                             <h3>动态调整</h3>
                                             <div style="font-size: 10px; color: #666; margin-bottom: 6px;">
                                                 实时调整队形（仅限跟随者）
                                             </div>
                                             <div class="position-control" id="followerInputsContainer">
-                                                <!-- 这里会通过JavaScript动态生成输入框 -->
-                                            </div>
+                                                </div>
                                             <button class="action-btn" onclick="updateFormationOffsets()" style="margin-top: 6px;">更新偏移量</button>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                     </div>
-                    <!-- 右侧列：控制面板 -->
                     <div class="sidebar-right">
                         <div class="right-controls">
-                            <!-- 小车控制 -->
                             <div class="collapsible-section">
                                 <div class="section-header" onclick="toggleSection('carControlSection')">
                                     小车控制
@@ -724,7 +713,6 @@
                                 </div>
                             </div>
 
-                            <!-- 系统控制 -->
                             <div class="collapsible-section">
                                 <div class="section-header" onclick="toggleSection('systemControlSection')">
                                     系统控制
@@ -747,37 +735,37 @@
                                             <div style="margin-bottom: 8px;">
                                                 <div class="topology-matrix">
                                                     <div class="matrix-header"></div>
-                                                    <div class="matrix-header">C1</div>
-                                                    <div class="matrix-header">C2</div>
-                                                    <div class="matrix-header">C3</div>
-                                                    <div class="matrix-header">C4</div>
+                                                    <div class="matrix-header">R1</div>
+                                                    <div class="matrix-header">R2</div>
+                                                    <div class="matrix-header">R3</div>
+                                                    <div class="matrix-header">R4</div>
 
-                                                    <div class="matrix-header">C1</div>
+                                                    <div class="matrix-header">R1</div>
                                                     <div class="matrix-cell"><input type="number" id="a11" class="coord-input" value="0" min="0" max="1" readonly style="background: #f0f0f0;"></div>
                                                     <div class="matrix-cell"><input type="number" id="a12" class="coord-input" value="0" min="0" max="1"></div>
                                                     <div class="matrix-cell"><input type="number" id="a13" class="coord-input" value="0" min="0" max="1"></div>
                                                     <div class="matrix-cell"><input type="number" id="a14" class="coord-input" value="0" min="0" max="1"></div>
 
-                                                    <div class="matrix-header">C2</div>
+                                                    <div class="matrix-header">R2</div>
                                                     <div class="matrix-cell"><input type="number" id="a21" class="coord-input" value="1" min="0" max="1"></div>
                                                     <div class="matrix-cell"><input type="number" id="a22" class="coord-input" value="0" min="0" max="1" readonly style="background: #f0f0f0;"></div>
                                                     <div class="matrix-cell"><input type="number" id="a23" class="coord-input" value="0" min="0" max="1"></div>
                                                     <div class="matrix-cell"><input type="number" id="a24" class="coord-input" value="0" min="0" max="1"></div>
 
-                                                    <div class="matrix-header">C3</div>
+                                                    <div class="matrix-header">R3</div>
                                                     <div class="matrix-cell"><input type="number" id="a31" class="coord-input" value="1" min="0" max="1"></div>
                                                     <div class="matrix-cell"><input type="number" id="a32" class="coord-input" value="0" min="0" max="1"></div>
                                                     <div class="matrix-cell"><input type="number" id="a33" class="coord-input" value="0" min="0" max="1" readonly style="background: #f0f0f0;"></div>
                                                     <div class="matrix-cell"><input type="number" id="a34" class="coord-input" value="0" min="0" max="1"></div>
 
-                                                    <div class="matrix-header">C4</div>
+                                                    <div class="matrix-header">R4</div>
                                                     <div class="matrix-cell"><input type="number" id="a41" class="coord-input" value="1" min="0" max="1"></div>
                                                     <div class="matrix-cell"><input type="number" id="a42" class="coord-input" value="0" min="0" max="1"></div>
                                                     <div class="matrix-cell"><input type="number" id="a43" class="coord-input" value="0" min="0" max="1"></div>
                                                     <div class="matrix-cell"><input type="number" id="a44" class="coord-input" value="0" min="0" max="1" readonly style="background: #f0f0f0;"></div>
                                                 </div>
                                                 <div style="font-size: 9px; color: #666; text-align: center; margin-top: 3px;">
-                                                    A(i,j)=1: CARi → CARj | 对角线固定为0
+                                                    A(i,j)=1: Robot#i → Robot#j | 对角线固定为0
                                                 </div>
                                             </div>
 
@@ -793,10 +781,10 @@
                                             <div class="visibility-info">
                                                 <div style="font-size: 10px; font-weight: bold; margin-bottom: 2px;">各小车可见性:</div>
                                                 <div id="visibilityInfo" style="font-size: 9px; line-height: 1.2;">
-                                                    CAR1: CAR2, CAR3, CAR4<br>
-                                                    CAR2: CAR1, CAR3, CAR4<br>
-                                                    CAR3: CAR1, CAR2, CAR4<br>
-                                                    CAR4: CAR1, CAR2, CAR3
+                                                    R#1: R#2, R#3, R#4<br>
+                                                    R#2: R#1, R#3, R#4<br>
+                                                    R#3: R#1, R#2, R#4<br>
+                                                    R#4: R#1, R#2, R#3
                                                 </div>
                                             </div>
                                         </div>
@@ -809,13 +797,11 @@
                 </div>
             </div>
 
-            <!-- 系统状态 -->
             <div class="system-status">
                 更新日期: 2025 | 系统运行正常 | 在线小车: <span id="onlineCarCount">0</span> 台
             </div>
         </div>
 
-        <!-- 坐标图区域 -->
         <div class="coordinate-map">
             <div class="map-header">
                 <h1>实时位置观测</h1>
@@ -831,13 +817,11 @@
         </div>
     </div>
 
-    <!-- 小车详情弹窗 -->
     <div class="car-popup" id="carPopup">
         <button class="popup-close" onclick="closeCarPopup()">&times;</button>
-        <h3 id="popupCarId">CAR1</h3>
+        <h3 id="popupCarId">ROBOT#1</h3>
         <div class="popup-details" id="popupDetails">
-            <!-- 详情内容将通过JavaScript动态生成 -->
-        </div>
+            </div>
     </div>
 
     <script>
@@ -969,12 +953,12 @@
                 ctx.arc(x, y, FORMATION_PREVIEW_CONFIG.carSize, 0, Math.PI * 2);
                 ctx.fill();
                 
-                // 绘制小车ID
+                // 绘制小车ID (这里在预览图中使用 R1, R2 形式以节省空间)
                 ctx.fillStyle = carId === leaderId ? '#fff' : '#2c3e50';
                 ctx.font = 'bold 7px Arial';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                ctx.fillText(carId.replace('CAR', ''), x, y);
+                ctx.fillText(carId.replace('CAR', 'R'), x, y);
                 
                 // 如果是领航者，绘制特殊标记
                 if (carId === leaderId) {
@@ -988,7 +972,7 @@
             
             // 更新预览信息
             document.getElementById('formationPreviewInfo').textContent = 
-                `${getFormationName(formationType)}队形 - 领航者: ${leaderId}`;
+                `${getFormationName(formationType)}队形 - 领航者: ${leaderId.replace('CAR', 'ROBOT#')}`;
         }
 
         // 获取队形名称
@@ -1333,12 +1317,13 @@
             // 恢复上下文状态
             ctx.restore();
 
-            // 绘制小车ID
+            // 绘制小车ID (替换显示 CAR 为 R#)
+            const displayId = carId.replace('CAR', 'R#');
             ctx.fillStyle = selectedCarId === carId ? '#e74c3c' : '#2c3e50';
             ctx.font = 'bold 13px Arial';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'bottom';
-            ctx.fillText(carId, x, y - pointerLength/2 - 5);
+            ctx.fillText(displayId, x, y - pointerLength/2 - 5);
 
             // 绘制电池状态指示
             const batteryWidth = 25;
@@ -1475,7 +1460,7 @@
             carList.innerHTML = cars.map(car => `
                 <div class="car-item ${car.connected ? '' : 'disconnected'} ${car.id === selectedCarId ? 'selected' : ''}" onclick="selectCar('${car.id}')">
                     <div class="car-header">
-                        <div class="car-id">🚗 ${car.id}</div>
+                        <div class="car-id"> ${car.id.replace('CAR', 'ROBOT#')}</div>
                         <div class="car-status ${car.connected ? 'status-connected' : 'status-disconnected'}">
                             ${car.connected ? '在线' : '离线'}
                         </div>
@@ -1524,9 +1509,10 @@
             const selector = document.getElementById('carSelector');
             const currentSelection = selector.value;
 
+            // 选项的 Value 保持不变 (CAR1)，只改变显示文本 (ROBOT#1)
             selector.innerHTML = '<option value="">-- 选择小车 --</option>' +
                 cars.filter(car => car.connected).map(car =>
-                    `<option value="${car.id}" ${car.id === currentSelection ? 'selected' : ''}>${car.id}</option>`
+                    `<option value="${car.id}" ${car.id === currentSelection ? 'selected' : ''}>${car.id.replace('CAR', 'ROBOT#')}</option>`
                 ).join('');
 
             if (!currentSelection && cars.length > 0) {
@@ -1545,7 +1531,8 @@
 
             // 高亮显示选中的小车
             document.querySelectorAll('.car-item').forEach(item => {
-                item.classList.toggle('selected', item.querySelector('.car-id').textContent.includes(carId));
+                // 更新匹配逻辑以适应 ROBOT#
+                item.classList.toggle('selected', item.querySelector('.car-id').textContent.includes(carId.replace('CAR', 'ROBOT#')));
             });
 
             // 重绘坐标图以突出显示选中的小车
@@ -1762,7 +1749,10 @@
                 for (let carId of ['CAR1', 'CAR2', 'CAR3', 'CAR4']) {
                     const response = await fetch(`/api/topology/visible/${carId}`);
                     const data = await response.json();
-                    html += `${carId}: ${data.visible_cars.join(', ')}<br>`;
+                    // 在显示时替换名称
+                    const displayId = carId.replace('CAR', 'R#');
+                    const visibleCars = data.visible_cars.map(c => c.replace('CAR', 'R#')).join(', ');
+                    html += `${displayId}: ${visibleCars}<br>`;
                 }
 
                 visibilityInfo.innerHTML = html;
@@ -1802,7 +1792,8 @@
             const car = cars.find(c => c.id === carId);
             if (!car) return;
 
-            popupCarId.textContent = carId;
+            // 替换标题中的显示
+            popupCarId.textContent = carId.replace('CAR', 'ROBOT#');
             popupDetails.innerHTML = `
                 <div class="detail-item">
                     <span class="detail-label">位置</span>
@@ -1849,14 +1840,14 @@
 
             let html = '';
             followers.forEach(carId => {
-                // 为每个跟随者生成X、Y坐标输入框
+                // 为每个跟随者生成X、Y坐标输入框，标签显示替换后的名字
                 html += `
                     <div>
-                        <label>${carId} X:</label>
+                        <label>${carId.replace('CAR', 'ROBOT#')} X:</label>
                         <input type="number" id="${carId}X" class="coord-input" value="0" step="0.1">
                     </div>
                     <div>
-                        <label>${carId} Y:</label>
+                        <label>${carId.replace('CAR', 'ROBOT#')} Y:</label>
                         <input type="number" id="${carId}Y" class="coord-input" value="0" step="0.1">
                     </div>
                 `;
@@ -2035,7 +2026,7 @@
         function updateFormationStatus(enabled, leaderId = '', formationType = '') {
             const statusElement = document.getElementById('formationStatus');
             if (enabled) {
-                statusElement.innerHTML = `状态: <span style="color: #48bb78;">编队中</span> - 领航者: ${leaderId}, 队形: ${formationType}`;
+                statusElement.innerHTML = `状态: <span style="color: #48bb78;">编队中</span> - 领航者: ${leaderId.replace('CAR', 'ROBOT#')}, 队形: ${formationType}`;
             } else {
                 statusElement.innerHTML = '状态: <span style="color: #f56565;">未启动</span>';
             }
