@@ -1482,7 +1482,7 @@
                                     <div class="velocity-components">
                                         <span>Vx: ${car.velocity.vx.toFixed(3)}</span>
                                         <span>Vy: ${car.velocity.vy.toFixed(3)}</span>
-                                        <span>Vz: ${car.velocity.vz.toFixed(3)}</span>
+                                        <span>ω : ${car.velocity.vz.toFixed(3)}</span>
                                     </div>
                                 </div>
                             </span>
@@ -1702,15 +1702,17 @@
                 showMessage('切换拓扑状态失败', 'error');
             }
         }
-
+        // 在函数外部新增一个标志位变量
+        let isTopologyLoaded = false;
         async function getTopologyStatus() {
             try {
                 const response = await fetch('/api/topology/status');
                 const status = await response.json();
                 updateTopologyStatus(status.topology_enabled);
 
-                // 更新矩阵显示
-                if (status.topology) {
+                // 关键修复：加入 && !isTopologyLoaded 判断
+                // 只有在第一次加载网页时，才把服务器的数据填入输入框，后续不再覆盖
+                if (status.topology && !isTopologyLoaded) {
                     document.getElementById('a12').value = status.topology[0][1];
                     document.getElementById('a13').value = status.topology[0][2];
                     document.getElementById('a14').value = status.topology[0][3];
@@ -1723,6 +1725,8 @@
                     document.getElementById('a41').value = status.topology[3][0];
                     document.getElementById('a42').value = status.topology[3][1];
                     document.getElementById('a43').value = status.topology[3][2];
+                    
+                    isTopologyLoaded = true; // 标记已加载完毕
                 }
 
                 updateVisibilityInfo(); // 更新可见性信息
