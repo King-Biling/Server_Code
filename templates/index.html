@@ -69,7 +69,6 @@
             flex-direction: column;
             min-width: 600px;
             max-width: 800px;
-            /* 添加整体滚动 */
             overflow: hidden;
         }
 
@@ -104,7 +103,7 @@
             display: flex;
             gap: 20px;
             flex: 1;
-            min-height: 0; /* 重要：允许内容收缩 */
+            min-height: 0;
         }
 
         .sidebar-left {
@@ -126,7 +125,7 @@
             margin-bottom: 20px;
             padding-bottom: 15px;
             border-bottom: 2px solid #eee;
-            flex-shrink: 0; /* 防止头部被压缩 */
+            flex-shrink: 0;
         }
 
         .header h1 {
@@ -141,7 +140,7 @@
             border-radius: 10px;
             overflow: hidden;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            flex-shrink: 0; /* 防止面板被压缩 */
+            flex-shrink: 0;
         }
 
         .section-header {
@@ -186,7 +185,7 @@
 
         /* 小车列表 */
         .car-list {
-            height: 400px; /* 四辆小车的高度 */
+            height: 400px;
             flex: 1;
             overflow-y: auto;
             margin-bottom: 0;
@@ -415,6 +414,172 @@
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
 
+        /* ===== 新增：精美遥控卡片样式 ===== */
+        .rc-panel {
+            background: linear-gradient(to bottom right, #ffffff, #f1f5f9);
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 12px;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+        }
+        
+        /* 苹果风格的开关 Switch */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 36px;
+            height: 20px;
+        }
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #cbd5e0;
+            transition: .3s;
+            border-radius: 20px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 2px;
+            bottom: 2px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        }
+        input:checked + .slider {
+            background-color: #48bb78;
+        }
+        input:checked + .slider:before {
+            transform: translateX(16px);
+        }
+
+        /* 虚拟键盘可视化 */
+        .keyboard-visualizer {
+            margin: 12px 0;
+        }
+        .kb-row {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .kb-key {
+            width: 42px;
+            height: 42px;
+            background: #fff;
+            border: 2px solid #cbd5e0;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            color: #4a5568;
+            font-size: 14px;
+            box-shadow: 0 4px 0 #cbd5e0;
+            transition: all 0.1s;
+            user-select: none;
+        }
+        .kb-key span {
+            font-size: 9px;
+            font-weight: normal;
+            color: #718096;
+            margin-top: 1px;
+        }
+        .kb-key.active {
+            background: #3498db;
+            color: #fff;
+            border-color: #2980b9;
+            box-shadow: 0 0 0 #2980b9;
+            transform: translateY(4px);
+        }
+        .kb-key.active span {
+            color: #e0f2fe;
+        }
+        .kb-key.turn {
+            background: #fdf2e9;
+            color: #d35400;
+            border-color: #f39c12;
+            box-shadow: 0 4px 0 #f39c12;
+        }
+        .kb-key.turn.active {
+            background: #e67e22;
+            color: #fff;
+            box-shadow: 0 0 0 #d68910;
+        }
+
+        /* 速度仪表盘 */
+        .speed-dashboard {
+            background: #fff;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+        }
+        .speed-bar-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 6px;
+            font-size: 10px;
+        }
+        .speed-bar-container:last-child {
+            margin-bottom: 0;
+        }
+        .speed-label {
+            width: 45px;
+            color: #4a5568;
+            font-weight: bold;
+        }
+        .speed-track {
+            flex: 1;
+            height: 10px;
+            background: #edf2f7;
+            border-radius: 5px;
+            position: relative;
+            margin: 0 8px;
+            overflow: hidden;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
+        }
+        .speed-track::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #a0aec0;
+            z-index: 2;
+        }
+        .speed-fill {
+            position: absolute;
+            top: 0;
+            height: 100%;
+            background: #3498db;
+            transition: width 0.1s ease-out, left 0.1s ease-out, right 0.1s ease-out;
+            z-index: 1;
+        }
+        .speed-fill.turn {
+            background: #e67e22;
+        }
+        .speed-val {
+            width: 35px;
+            text-align: right;
+            font-family: monospace;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
         /* 小车详情弹窗 */
         .car-popup {
             position: absolute;
@@ -526,7 +691,7 @@
             font-size: 10px;
             text-align: center;
             color: #4a5568;
-            flex-shrink: 0; /* 防止底部状态栏被压缩 */
+            flex-shrink: 0;
         }
 
         /* 紧凑布局调整 */
@@ -650,6 +815,58 @@
                                                 <canvas id="formationPreviewCanvas"></canvas>
                                                 <div class="preview-info" id="formationPreviewInfo">
                                                     选择队形查看预览...
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="control-section" id="keyboardControlSection" style="display: none;">
+                                            <div class="rc-panel">
+                                                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">
+                                                    <h3 style="color: #d35400; margin: 0; border: none; padding: 0;">🎮 领航者实时遥控</h3>
+                                                    <label class="switch" title="启用WASD遥控">
+                                                        <input type="checkbox" id="enableKeyboardCtrl">
+                                                        <span class="slider"></span>
+                                                    </label>
+                                                </div>
+                                                <div id="rcBody" style="opacity: 0.4; pointer-events: none; transition: opacity 0.3s;">
+                                                    <div class="keyboard-visualizer">
+                                                        <div class="kb-row">
+                                                            <div class="kb-key turn" id="key-q">Q<span>逆旋</span></div>
+                                                            <div class="kb-key" id="key-w">W<span>前进</span></div>
+                                                            <div class="kb-key turn" id="key-e">E<span>顺旋</span></div>
+                                                        </div>
+                                                        <div class="kb-row">
+                                                            <div class="kb-key" id="key-a">A<span>左移</span></div>
+                                                            <div class="kb-key" id="key-s">S<span>后退</span></div>
+                                                            <div class="kb-key" id="key-d">D<span>右移</span></div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="speed-dashboard">
+                                                        <div class="speed-bar-container">
+                                                            <div class="speed-label">Vx (线)</div>
+                                                            <div class="speed-track">
+                                                                <div class="speed-fill" id="bar-vx"></div>
+                                                            </div>
+                                                            <div class="speed-val" id="val-vx">0.00</div>
+                                                        </div>
+                                                        <div class="speed-bar-container">
+                                                            <div class="speed-label">Vy (侧)</div>
+                                                            <div class="speed-track">
+                                                                <div class="speed-fill" id="bar-vy"></div>
+                                                            </div>
+                                                            <div class="speed-val" id="val-vy">0.00</div>
+                                                        </div>
+                                                        <div class="speed-bar-container">
+                                                            <div class="speed-label">Vz (角)</div>
+                                                            <div class="speed-track">
+                                                                <div class="speed-fill turn" id="bar-vz"></div>
+                                                            </div>
+                                                            <div class="speed-val" id="val-vz">0.00</div>
+                                                        </div>
+                                                    </div>
+                                                    <div style="font-size: 9px; color: #a0aec0; text-align: center; margin-top: 6px;">
+                                                        提示：支持全向组合键 (如 W+A斜行)
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -827,27 +1044,26 @@
     <script>
         // ==================== 广播配置 ====================
         const BROADCAST_CONFIG = {
-            port: 8081,  // 与Python代码中的BROADCAST_PORT保持一致
-            host: '255.255.255.255'  // 广播地址
+            port: 8081,  
+            host: '255.255.255.255' 
         };
 
         // ==================== 坐标范围配置 ====================
-        // 在这里修改坐标范围，方便后续调整
         const COORDINATE_RANGE = {
-            minX: -6,   // X轴最小值
-            maxX: 6,    // X轴最大值
-            minY: -6,   // Y轴最小值
-            maxY: 6     // Y轴最大值
+            minX: -6,   
+            maxX: 6,    
+            minY: -6,   
+            maxY: 6     
         };
 
         // ==================== 队形预览配置 ====================
         const FORMATION_PREVIEW_CONFIG = {
-            canvasWidth: 0, // 将根据容器宽度自动设置
+            canvasWidth: 0, 
             canvasHeight: 150,
-            previewRange: 2, // 预览范围 ±2米
-            carSize: 5,      // 小车显示大小
-            leaderColor: '#e74c3c', // 领航者颜色
-            followerColor: '#3498db' // 跟随者颜色
+            previewRange: 2, 
+            carSize: 5,      
+            leaderColor: '#e74c3c', 
+            followerColor: '#3498db' 
         };
 
         // 队形配置数据
@@ -873,7 +1089,6 @@
         };
 
         // ==================== 其他变量 ====================
-        // 小车数据
         let cars = [];
         let selectedCarId = null;
         let lastUpdateTime = 0;
@@ -889,14 +1104,12 @@
             formationPreviewCanvas = document.getElementById('formationPreviewCanvas');
             formationPreviewCtx = formationPreviewCanvas.getContext('2d');
             
-            // 设置画布尺寸 - 宽度自适应容器
             const containerWidth = formationPreviewCanvas.parentElement.offsetWidth;
             FORMATION_PREVIEW_CONFIG.canvasWidth = containerWidth;
             
             formationPreviewCanvas.width = FORMATION_PREVIEW_CONFIG.canvasWidth;
             formationPreviewCanvas.height = FORMATION_PREVIEW_CONFIG.canvasHeight;
             
-            // 绘制初始预览
             drawFormationPreview('line', 'CAR1');
         }
 
@@ -909,58 +1122,46 @@
             const height = FORMATION_PREVIEW_CONFIG.canvasHeight;
             const range = FORMATION_PREVIEW_CONFIG.previewRange;
             
-            // 清空画布
             ctx.clearRect(0, 0, width, height);
             
-            // 绘制背景
             ctx.fillStyle = '#f8f9fa';
             ctx.fillRect(0, 0, width, height);
             
-            // 绘制坐标轴
             ctx.strokeStyle = '#ddd';
             ctx.lineWidth = 1;
             
-            // X轴
             ctx.beginPath();
             ctx.moveTo(0, height / 2);
             ctx.lineTo(width, height / 2);
             ctx.stroke();
             
-            // Y轴
             ctx.beginPath();
             ctx.moveTo(width / 2, 0);
             ctx.lineTo(width / 2, height);
             ctx.stroke();
             
-            // 获取队形配置
             const formation = FORMATION_CONFIGS[formationType] || FORMATION_CONFIGS['line'];
             
-            // 绘制小车
             Object.keys(formation).forEach(carId => {
                 const car = formation[carId];
                 
-                // 坐标转换
                 const x = (car.x / (range * 2)) * width + width / 2 + 35;
                 const y = height / 2 - (car.y / (range * 2)) * height;
                 
-                // 设置颜色
                 ctx.fillStyle = carId === leaderId ? 
                     FORMATION_PREVIEW_CONFIG.leaderColor : 
                     FORMATION_PREVIEW_CONFIG.followerColor;
                 
-                // 绘制小车
                 ctx.beginPath();
                 ctx.arc(x, y, FORMATION_PREVIEW_CONFIG.carSize, 0, Math.PI * 2);
                 ctx.fill();
                 
-                // 绘制小车ID (这里在预览图中使用 R1, R2 形式以节省空间)
                 ctx.fillStyle = carId === leaderId ? '#fff' : '#2c3e50';
                 ctx.font = 'bold 7px Arial';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillText(carId.replace('CAR', 'R'), x, y);
                 
-                // 如果是领航者，绘制特殊标记
                 if (carId === leaderId) {
                     ctx.strokeStyle = '#fff';
                     ctx.lineWidth = 1;
@@ -970,12 +1171,10 @@
                 }
             });
             
-            // 更新预览信息
             document.getElementById('formationPreviewInfo').textContent = 
                 `${getFormationName(formationType)}队形 - 领航者: ${leaderId.replace('CAR', 'ROBOT#')}`;
         }
 
-        // 获取队形名称
         function getFormationName(formationType) {
             const names = {
                 'line': '直线',
@@ -986,7 +1185,6 @@
             return names[formationType] || formationType;
         }
 
-        // 修改loadFormationPreview函数，添加预览绘制
         async function loadFormationPreview(formationType) {
             try {
                 const response = await fetch('/api/formation/configs');
@@ -995,11 +1193,9 @@
                 if (result.success && result.formation_configs[formationType]) {
                     const config = result.formation_configs[formationType];
                     
-                    // 绘制队形预览
                     const leaderId = document.getElementById('leaderSelector').value;
                     drawFormationPreview(formationType, leaderId);
 
-                    // 如果是自定义模式，填充到文本框
                     if (formationType !== 'custom') {
                         document.getElementById('customOffsets').value = JSON.stringify(config, null, 2);
                     }
@@ -1009,21 +1205,15 @@
             }
         }
 
-        // 计算坐标范围显示文本
         function getCoordinateRangeText() {
             return `坐标范围: X[${COORDINATE_RANGE.minX}, ${COORDINATE_RANGE.maxX}], Y[${COORDINATE_RANGE.minY}, ${COORDINATE_RANGE.maxY}] | 角度: 0°=X轴正方向, 逆时针增加`;
         }
 
-        // 网络状态检查
         function checkNetworkStatus() {
             const statusElement = document.getElementById('broadcastStatus');
             statusElement.innerHTML = `状态: 未启动 | 广播端口: ${BROADCAST_CONFIG.port}`;
-
-            console.log('📡 广播配置:', BROADCAST_CONFIG);
-            console.log('🌐 确保小车监听端口:', BROADCAST_CONFIG.port);
         }
 
-        // 折叠面板控制
         function toggleSection(sectionId) {
             const section = document.getElementById(sectionId);
             const header = section.previousElementSibling;
@@ -1032,58 +1222,45 @@
             header.classList.toggle('collapsed');
         }
 
-        // 初始化坐标图
         function initCoordinateMap() {
             canvas = document.getElementById('coordinateCanvas');
             ctx = canvas.getContext('2d');
 
-            // 更新坐标范围显示
             document.getElementById('coordinateRangeDisplay').textContent = getCoordinateRangeText();
 
-            // 设置Canvas尺寸
             function resizeCanvas() {
                 canvas.width = canvas.offsetWidth;
                 canvas.height = canvas.offsetHeight;
                 drawCoordinateSystem();
             }
 
-            // 初始调整尺寸
             resizeCanvas();
-
-            // 监听窗口大小变化
             window.addEventListener('resize', resizeCanvas);
         }
 
-        // 绘制坐标系统
         function drawCoordinateSystem() {
             const width = canvas.width;
             const height = canvas.height;
 
-            // 清空画布
             ctx.clearRect(0, 0, width, height);
 
-            // 绘制背景
             ctx.fillStyle = '#f8f9fa';
             ctx.fillRect(0, 0, width, height);
 
-            // 计算坐标范围
             const rangeX = COORDINATE_RANGE.maxX - COORDINATE_RANGE.minX;
             const rangeY = COORDINATE_RANGE.maxY - COORDINATE_RANGE.minY;
 
-            // 确保横纵坐标比例1:1
             const scaleX = width / rangeX;
             const scaleY = height / rangeY;
-            const scale = Math.min(scaleX, scaleY); // 取较小的比例确保内容完全显示
+            const scale = Math.min(scaleX, scaleY); 
 
-            // 计算居中偏移量
             const offsetX = (width - rangeX * scale) / 2;
             const offsetY = (height - rangeY * scale) / 2;
 
-            // 绘制网格
             ctx.strokeStyle = '#e9ecef';
             ctx.lineWidth = 1;
 
-            const gridSize = 1; // 网格大小为1个单位
+            const gridSize = 1; 
             for (let x = COORDINATE_RANGE.minX; x <= COORDINATE_RANGE.maxX; x += gridSize) {
                 const pixelX = coordinateToPixelX(x);
                 ctx.beginPath();
@@ -1100,31 +1277,26 @@
                 ctx.stroke();
             }
 
-            // 绘制坐标轴
             ctx.strokeStyle = '#495057';
             ctx.lineWidth = 2;
 
-            // X轴
             const zeroY = coordinateToPixelY(0);
             ctx.beginPath();
             ctx.moveTo(offsetX, zeroY);
             ctx.lineTo(width - offsetX, zeroY);
             ctx.stroke();
 
-            // Y轴
             const zeroX = coordinateToPixelX(0);
             ctx.beginPath();
             ctx.moveTo(zeroX, offsetY);
             ctx.lineTo(zeroX, height - offsetY);
             ctx.stroke();
 
-            // 绘制坐标刻度
             ctx.fillStyle = '#495057';
             ctx.font = '11px Arial';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
 
-            // X轴刻度（每2个单位一个刻度）
             for (let x = COORDINATE_RANGE.minX; x <= COORDINATE_RANGE.maxX; x += 2) {
                 const pixelX = coordinateToPixelX(x);
                 ctx.beginPath();
@@ -1135,7 +1307,6 @@
                 ctx.fillText(x.toString(), pixelX, zeroY + 10);
             }
 
-            // Y轴刻度
             ctx.textAlign = 'right';
             ctx.textBaseline = 'middle';
             for (let y = COORDINATE_RANGE.minY; y <= COORDINATE_RANGE.maxY; y += 2) {
@@ -1148,13 +1319,11 @@
                 ctx.fillText(y.toString(), zeroX - 10, pixelY);
             }
 
-            // 绘制坐标原点
             ctx.fillStyle = '#e74c3c';
             ctx.beginPath();
             ctx.arc(zeroX, zeroY, 4, 0, Math.PI * 2);
             ctx.fill();
 
-            // 绘制坐标轴标签
             ctx.fillStyle = '#2c3e50';
             ctx.font = '13px Arial';
             ctx.textAlign = 'right';
@@ -1165,23 +1334,19 @@
             ctx.textBaseline = 'bottom';
             ctx.fillText('X', width - offsetX, zeroY - 10);
 
-            // 绘制角度指示器
             drawAngleIndicators();
         }
 
-        // 绘制角度指示器
         function drawAngleIndicators() {
             const width = canvas.width;
             const height = canvas.height;
 
-            // 计算坐标范围
             const rangeX = COORDINATE_RANGE.maxX - COORDINATE_RANGE.minX;
             const rangeY = COORDINATE_RANGE.maxY - COORDINATE_RANGE.minY;
             const scaleX = width / rangeX;
             const scaleY = height / rangeY;
             const scale = Math.min(scaleX, scaleY);
 
-            // 计算居中偏移量
             const offsetX = (width - rangeX * scale) / 2;
             const offsetY = (height - rangeY * scale) / 2;
 
@@ -1193,14 +1358,12 @@
             ctx.lineWidth = 1;
             ctx.setLineDash([5, 3]);
 
-            // 绘制角度圆
             ctx.beginPath();
             ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
             ctx.stroke();
 
             ctx.setLineDash([]);
 
-            // 绘制角度标记
             ctx.fillStyle = '#7f8c8d';
             ctx.font = '11px Arial';
             ctx.textAlign = 'center';
@@ -1208,116 +1371,75 @@
 
             for (let angle = 0; angle < 360; angle += 30) {
                 const rad = angle * Math.PI / 180;
-                // 调整Y轴方向：Canvas Y轴向下，此处用"-sin(rad)"使角度逆时针时90°指向正上方
                 const x = centerX + radius * Math.cos(rad);
                 const y = centerY - radius * Math.sin(rad);
 
-                // 绘制角度线
                 ctx.beginPath();
                 ctx.moveTo(centerX, centerY);
                 ctx.lineTo(x, y);
                 ctx.stroke();
 
-                // 绘制角度文本（确保在圆外）
                 const textRadius = radius + 20;
                 const textX = centerX + textRadius * Math.cos(rad);
                 const textY = centerY - textRadius * Math.sin(rad);
                 ctx.fillText(angle + '°', textX, textY);
             }
 
-            // 特别标注0度方向（X轴正方向）
             ctx.fillStyle = '#e74c3c';
             const zeroTextX = centerX + (radius + 25) * Math.cos(0);
             const zeroTextY = centerY - (radius + 25) * Math.sin(0);
             ctx.fillText('0°', zeroTextX, zeroTextY);
         }
 
-        // ==================== 坐标转换函数 ====================
-        // 将坐标X转换为像素X（保持1:1比例，居中显示）
         function coordinateToPixelX(x) {
             const width = canvas.width;
-            const height = canvas.height;
-            
-            // 计算坐标范围
             const rangeX = COORDINATE_RANGE.maxX - COORDINATE_RANGE.minX;
             const rangeY = COORDINATE_RANGE.maxY - COORDINATE_RANGE.minY;
-            
-            // 确保横纵坐标比例1:1
-            const scaleX = width / rangeX;
-            const scaleY = height / rangeY;
-            const scale = Math.min(scaleX, scaleY); // 取较小的比例确保内容完全显示
-            
-            // 计算居中偏移量
+            const scale = Math.min(width / rangeX, canvas.height / rangeY);
             const offsetX = (width - rangeX * scale) / 2;
-            
             return offsetX + (x - COORDINATE_RANGE.minX) * scale;
         }
 
-        // 将坐标Y转换为像素Y（保持1:1比例，居中显示）
         function coordinateToPixelY(y) {
-            const width = canvas.width;
             const height = canvas.height;
-            
-            // 计算坐标范围
             const rangeX = COORDINATE_RANGE.maxX - COORDINATE_RANGE.minX;
             const rangeY = COORDINATE_RANGE.maxY - COORDINATE_RANGE.minY;
-            
-            // 确保横纵坐标比例1:1
-            const scaleX = width / rangeX;
-            const scaleY = height / rangeY;
-            const scale = Math.min(scaleX, scaleY); // 取较小的比例确保内容完全显示
-            
-            // 计算居中偏移量
+            const scale = Math.min(canvas.width / rangeX, height / rangeY);
             const offsetY = (height - rangeY * scale) / 2;
-            
             return height - offsetY - (y - COORDINATE_RANGE.minY) * scale;
         }
 
-        // ==================== 其他函数保持不变 ====================
-        // 绘制小车
         function drawCars() {
             cars.forEach(car => {
                 if (!car.connected) return;
-
                 const pixelX = coordinateToPixelX(car.position.x);
                 const pixelY = coordinateToPixelY(car.position.y);
-
-                // 绘制小车指针
                 drawCarPointer(pixelX, pixelY, car.heading, car.id, car.battery, car.velocity);
             });
         }
 
-        // 绘制小车指针（保持不变）
         function drawCarPointer(x, y, heading, carId, battery, velocity) {
             const pointerSize = 18;
             const pointerLength = 25;
 
-            // 保存当前上下文状态
             ctx.save();
-
-            // 移动到小车位置并旋转画布（-heading 适配 Canvas 顺时针旋转为正的特性，实现逆时针角度递增）
             ctx.translate(x, y);
             ctx.rotate(-heading * Math.PI / 180);
 
-            // 绘制指针主体（顶点指向 X 轴正方向，旋转后匹配逆时针角度）
             ctx.fillStyle = selectedCarId === carId ? '#e74c3c' : '#3498db';
             ctx.beginPath();
-            ctx.moveTo(pointerLength / 2, 0); // 顶点在 X 轴正方向
-            ctx.lineTo(-pointerLength / 2, -pointerSize / 2); // 左下点
-            ctx.lineTo(-pointerLength / 2, pointerSize / 2); // 右上点
+            ctx.moveTo(pointerLength / 2, 0); 
+            ctx.lineTo(-pointerLength / 2, -pointerSize / 2); 
+            ctx.lineTo(-pointerLength / 2, pointerSize / 2); 
             ctx.closePath();
             ctx.fill();
 
-            // 绘制指针中心圆
             ctx.fillStyle = selectedCarId === carId ? '#c0392b' : '#2980b9';
             ctx.beginPath();
             ctx.arc(0, 0, 6, 0, Math.PI * 2);
             ctx.fill();
-
-            // 恢复上下文状态
             ctx.restore();
 
-            // 绘制小车ID (替换显示 CAR 为 R#)
             const displayId = carId.replace('CAR', 'R#');
             ctx.fillStyle = selectedCarId === carId ? '#e74c3c' : '#2c3e50';
             ctx.font = 'bold 13px Arial';
@@ -1325,33 +1447,27 @@
             ctx.textBaseline = 'bottom';
             ctx.fillText(displayId, x, y - pointerLength/2 - 5);
 
-            // 绘制电池状态指示
             const batteryWidth = 25;
             const batteryHeight = 7;
             const batteryX = x - batteryWidth/2;
             const batteryY = y + pointerLength/2 + 8;
 
-            // 电池外壳
             ctx.strokeStyle = '#95a5a6';
             ctx.lineWidth = 1;
             ctx.strokeRect(batteryX, batteryY, batteryWidth, batteryHeight);
 
-            // 电池正极
             ctx.fillStyle = '#95a5a6';
             ctx.fillRect(batteryX + batteryWidth, batteryY + batteryHeight/4, 2, batteryHeight/2);
 
-            // 电池电量
             const batteryLevel = Math.min(100, Math.max(0, (battery - 10) / 2.6 * 100));
             ctx.fillStyle = batteryLevel < 20 ? '#e74c3c' : '#2ecc71';
             ctx.fillRect(batteryX + 1, batteryY + 1, (batteryWidth - 2) * batteryLevel / 100, batteryHeight - 2);
 
-            // 绘制线性速度矢量
             if (velocity && (velocity.vx !== 0 || velocity.vy !== 0)) {
-                const speedScale = 40; // 速度矢量缩放因子
+                const speedScale = 40; 
                 const vx = velocity.vx * speedScale;
-                const vy = -velocity.vy * speedScale; // Y轴方向反转
+                const vy = -velocity.vy * speedScale; 
 
-                // 绘制线性速度矢量
                 ctx.strokeStyle = '#e74c3c';
                 ctx.lineWidth = 1.5;
                 ctx.beginPath();
@@ -1359,7 +1475,6 @@
                 ctx.lineTo(x + vx, y + vy);
                 ctx.stroke();
 
-                // 绘制速度箭头
                 const arrowSize = 5;
                 const angle = Math.atan2(vy, vx);
                 ctx.beginPath();
@@ -1371,11 +1486,8 @@
             }
         }
 
-        // 精简版数据解析函数
         function parseCompactCarData(carData) {
-            // 检查是否为精简格式
             if (carData.i !== undefined) {
-                // 精简格式解析
                 return {
                     id: carData.i,
                     mac_address: carData.ma || `CAR_${carData.i}`,
@@ -1397,12 +1509,10 @@
                     update_count: carData.uc || carData.update_count || 0
                 };
             } else {
-                // 完整格式解析
                 return carData;
             }
         }
 
-        // 获取小车数据
         async function fetchCars() {
             try {
                 const startTime = performance.now();
@@ -1410,7 +1520,6 @@
                 let carsData = await response.json();
                 const endTime = performance.now();
 
-                // 标准化小车数据（支持精简和完整格式）
                 cars = Array.isArray(carsData) ? carsData.map(parseCompactCarData) : [];
 
                 updateCarList();
@@ -1425,7 +1534,6 @@
             }
         }
 
-        // 更新性能信息
         function updatePerformanceInfo(carCount, fetchTime, isError = false) {
             const performanceInfo = document.getElementById('performanceInfo');
             const carCountElement = document.getElementById('carCount');
@@ -1434,7 +1542,6 @@
             updateCount++;
             carCountElement.textContent = carCount;
 
-            // 更新在线小车数量
             const onlineCount = cars.filter(car => car.connected).length;
             onlineCarCountElement.textContent = onlineCount;
 
@@ -1448,7 +1555,6 @@
             }
         }
 
-        // 更新小车列表 - 修复速度显示
         function updateCarList() {
             const carList = document.getElementById('carList');
 
@@ -1477,7 +1583,7 @@
                         <div class="detail-item">
                             <span class="detail-label">速度</span>
                             <span class="detail-value">
-                                ${car.speed.toFixed(3)} mm/s
+                                ${car.speed.toFixed(3)} m/s
                                 <div class="speed-info">
                                     <div class="velocity-components">
                                         <span>Vx: ${car.velocity.vx.toFixed(3)}</span>
@@ -1504,12 +1610,10 @@
             `).join('');
         }
 
-        // 更新小车选择器
         function updateCarSelector() {
             const selector = document.getElementById('carSelector');
             const currentSelection = selector.value;
 
-            // 选项的 Value 保持不变 (CAR1)，只改变显示文本 (ROBOT#1)
             selector.innerHTML = '<option value="">-- 选择小车 --</option>' +
                 cars.filter(car => car.connected).map(car =>
                     `<option value="${car.id}" ${car.id === currentSelection ? 'selected' : ''}>${car.id.replace('CAR', 'ROBOT#')}</option>`
@@ -1524,33 +1628,24 @@
             }
         }
 
-        // 选择小车
         function selectCar(carId) {
             selectedCarId = carId;
             document.getElementById('carSelector').value = carId;
 
-            // 高亮显示选中的小车
             document.querySelectorAll('.car-item').forEach(item => {
-                // 更新匹配逻辑以适应 ROBOT#
                 item.classList.toggle('selected', item.querySelector('.car-id').textContent.includes(carId.replace('CAR', 'ROBOT#')));
             });
 
-            // 重绘坐标图以突出显示选中的小车
             drawCoordinateSystem();
             drawCars();
         }
 
-        // 广播控制函数 - 修改版本
         async function toggleBroadcast(enable) {
             try {
                 const response = await fetch('/api/broadcast', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        enable: enable
-                    })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enable: enable })
                 });
 
                 const result = await response.json();
@@ -1566,7 +1661,6 @@
             }
         }
 
-        // 更新广播状态显示 - 修改版本
         function updateBroadcastStatus(enable) {
             const statusElement = document.getElementById('broadcastStatus');
             const onBtn = document.getElementById('broadcastOnBtn');
@@ -1583,7 +1677,6 @@
             }
         }
 
-        // 获取广播状态
         async function getBroadcastStatus() {
             try {
                 const response = await fetch('/api/broadcast/status');
@@ -1594,7 +1687,6 @@
             }
         }
 
-        // 发送位置控制指令
         async function sendPositionCommand() {
             if (!selectedCarId) {
                 alert('请先选择要控制的小车');
@@ -1614,9 +1706,7 @@
             try {
                 const response = await fetch('/api/control_position', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         car_id: selectedCarId,
                         position: { x: posX, y: posY },
@@ -1636,7 +1726,6 @@
             }
         }
 
-        // 拓扑控制函数
         async function setTopology() {
             const topology = [
                 [0, parseInt(document.getElementById('a12').value), parseInt(document.getElementById('a13').value), parseInt(document.getElementById('a14').value)],
@@ -1648,20 +1737,15 @@
             try {
                 const response = await fetch('/api/topology', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        topology: topology,
-                        enable: true
-                    })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ topology: topology, enable: true })
                 });
 
                 const result = await response.json();
                 if (result.success) {
                     showMessage(result.message, 'success');
                     updateTopologyStatus(true);
-                    updateVisibilityInfo(); // 更新可见性信息
+                    updateVisibilityInfo(); 
                 } else {
                     showMessage(result.error, 'error');
                 }
@@ -1675,12 +1759,8 @@
             try {
                 const response = await fetch('/api/topology/toggle', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        enable: enable
-                    })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enable: enable })
                 });
 
                 const result = await response.json();
@@ -1688,11 +1768,10 @@
                     showMessage(result.message, 'success');
                     updateTopologyStatus(enable);
 
-                    // 如果启用拓扑，同时设置拓扑矩阵
                     if (enable) {
                         setTopology();
                     } else {
-                        updateVisibilityInfo(); // 禁用时也更新可见性信息
+                        updateVisibilityInfo(); 
                     }
                 } else {
                     showMessage(result.error, 'error');
@@ -1702,7 +1781,8 @@
                 showMessage('切换拓扑状态失败', 'error');
             }
         }
-        // 在函数外部新增一个标志位变量
+
+        // ==================== 拓扑 Bug 修复 ====================
         let isTopologyLoaded = false;
         async function getTopologyStatus() {
             try {
@@ -1710,8 +1790,6 @@
                 const status = await response.json();
                 updateTopologyStatus(status.topology_enabled);
 
-                // 关键修复：加入 && !isTopologyLoaded 判断
-                // 只有在第一次加载网页时，才把服务器的数据填入输入框，后续不再覆盖
                 if (status.topology && !isTopologyLoaded) {
                     document.getElementById('a12').value = status.topology[0][1];
                     document.getElementById('a13').value = status.topology[0][2];
@@ -1726,10 +1804,10 @@
                     document.getElementById('a42').value = status.topology[3][1];
                     document.getElementById('a43').value = status.topology[3][2];
                     
-                    isTopologyLoaded = true; // 标记已加载完毕
+                    isTopologyLoaded = true;
                 }
 
-                updateVisibilityInfo(); // 更新可见性信息
+                updateVisibilityInfo();
             } catch (error) {
                 console.error('获取拓扑状态失败:', error);
             }
@@ -1744,7 +1822,6 @@
             }
         }
 
-        // 更新可见性信息
         async function updateVisibilityInfo() {
             try {
                 const visibilityInfo = document.getElementById('visibilityInfo');
@@ -1753,7 +1830,6 @@
                 for (let carId of ['CAR1', 'CAR2', 'CAR3', 'CAR4']) {
                     const response = await fetch(`/api/topology/visible/${carId}`);
                     const data = await response.json();
-                    // 在显示时替换名称
                     const displayId = carId.replace('CAR', 'R#');
                     const visibleCars = data.visible_cars.map(c => c.replace('CAR', 'R#')).join(', ');
                     html += `${displayId}: ${visibleCars}<br>`;
@@ -1765,9 +1841,7 @@
             }
         }
 
-        // 显示消息
         function showMessage(message, type) {
-            // 创建临时消息提示
             const messageDiv = document.createElement('div');
             messageDiv.style.cssText = `
                 position: fixed;
@@ -1786,17 +1860,13 @@
             messageDiv.textContent = message;
             document.body.appendChild(messageDiv);
 
-            setTimeout(() => {
-                document.body.removeChild(messageDiv);
-            }, 3000);
+            setTimeout(() => { document.body.removeChild(messageDiv); }, 3000);
         }
 
-        // 显示小车详情弹窗 - 修复速度显示
         function showCarPopup(carId, x, y) {
             const car = cars.find(c => c.id === carId);
             if (!car) return;
 
-            // 替换标题中的显示
             popupCarId.textContent = carId.replace('CAR', 'ROBOT#');
             popupDetails.innerHTML = `
                 <div class="detail-item">
@@ -1837,14 +1907,12 @@
             carPopup.style.top = `${y + 10}px`;
         }
 
-        // 生成跟随者偏移量输入框
         function generateFollowerInputs(leaderId) {
             const allCars = ['CAR1', 'CAR2', 'CAR3', 'CAR4'];
             const followers = allCars.filter(carId => carId !== leaderId);
 
             let html = '';
             followers.forEach(carId => {
-                // 为每个跟随者生成X、Y坐标输入框，标签显示替换后的名字
                 html += `
                     <div>
                         <label>${carId.replace('CAR', 'ROBOT#')} X:</label>
@@ -1856,30 +1924,22 @@
                     </div>
                 `;
             });
-
             return html;
         }
 
-        // 设置默认偏移量
         function setDefaultOffsets(formationType, leaderId) {
             const defaults = {
                 'line': {
-                    'CAR1': {x: 0, y: 0},
-                    'CAR2': {x: -0.7, y: 0},
-                    'CAR3': {x: -1.4, y: 0},
-                    'CAR4': {x: -2.1, y: 0}
+                    'CAR1': {x: 0, y: 0}, 'CAR2': {x: -0.7, y: 0},
+                    'CAR3': {x: -1.4, y: 0}, 'CAR4': {x: -2.1, y: 0}
                 },
                 'Diamond': {
-                    'CAR1': {x: 0, y: 0},
-                    'CAR2': {x: -0.7, y: -0.7},
-                    'CAR3': {x: -0.7, y: 0.7},
-                    'CAR4': {x: -1.4, y: 0}
+                    'CAR1': {x: 0, y: 0}, 'CAR2': {x: -0.7, y: -0.7},
+                    'CAR3': {x: -0.7, y: 0.7}, 'CAR4': {x: -1.4, y: 0}
                 },
                 'square': {
-                    'CAR1': {x: 0, y: 0},
-                    'CAR2': {x: 0, y: -0.7},
-                    'CAR3': {x: -0.7, y: -0.7},
-                    'CAR4': {x: -0.7, y: 0}
+                    'CAR1': {x: 0, y: 0}, 'CAR2': {x: 0, y: -0.7},
+                    'CAR3': {x: -0.7, y: -0.7}, 'CAR4': {x: -0.7, y: 0}
                 }
             };
 
@@ -1896,12 +1956,10 @@
             });
         }
 
-        // 关闭小车详情弹窗
-        function closeCarPopup() {
-            carPopup.style.display = 'none';
+        function closeCarPopup() { 
+            carPopup.style.display = 'none'; 
         }
 
-        // 编队控制函数
         async function startFormation() {
             const leaderId = document.getElementById('leaderSelector').value;
             const formationType = document.getElementById('formationType').value;
@@ -1909,20 +1967,14 @@
             try {
                 const response = await fetch('/api/formation/start', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        leader_id: leaderId,
-                        formation_type: formationType
-                    })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ leader_id: leaderId, formation_type: formationType })
                 });
 
                 const result = await response.json();
                 if (result.success) {
                     showMessage(result.message, 'success');
                     updateFormationStatus(true, leaderId, formationType);
-                    // 显示动态调整面板
                     document.getElementById('dynamicAdjustSection').style.display = 'block';
                 } else {
                     showMessage(result.error, 'error');
@@ -1937,16 +1989,13 @@
             try {
                 const response = await fetch('/api/formation/stop', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    }
+                    headers: { 'Content-Type': 'application/json' }
                 });
 
                 const result = await response.json();
                 if (result.success) {
                     showMessage(result.message, 'success');
                     updateFormationStatus(false);
-                    // 隐藏动态调整面板
                     document.getElementById('dynamicAdjustSection').style.display = 'none';
                 } else {
                     showMessage(result.error, 'error');
@@ -1963,16 +2012,10 @@
 
             try {
                 const customOffsets = JSON.parse(customOffsetsText);
-
                 const response = await fetch('/api/formation/custom', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        leader_id: leaderId,
-                        offsets: customOffsets
-                    })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ leader_id: leaderId, offsets: customOffsets })
                 });
 
                 const result = await response.json();
@@ -1989,15 +2032,12 @@
             }
         }
 
-        // 更新编队偏移量 - 修复支持所有小车
         async function updateFormationOffsets() {
             const leaderId = document.getElementById('leaderSelector').value;
             const allCars = ['CAR1', 'CAR2', 'CAR3', 'CAR4'];
             const followers = allCars.filter(carId => carId !== leaderId);
-
             const offsets = {};
 
-            // 为每个跟随者收集偏移量
             followers.forEach(carId => {
                 const x = parseFloat(document.getElementById(`${carId}X`).value) || 0;
                 const y = parseFloat(document.getElementById(`${carId}Y`).value) || 0;
@@ -2007,12 +2047,8 @@
             try {
                 const response = await fetch('/api/formation/update_offsets', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        offsets: offsets
-                    })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ offsets: offsets })
                 });
 
                 const result = await response.json();
@@ -2027,16 +2063,29 @@
             }
         }
 
+        // ==================== 更新状态函数 ====================
         function updateFormationStatus(enabled, leaderId = '', formationType = '') {
             const statusElement = document.getElementById('formationStatus');
+            const kbSection = document.getElementById('keyboardControlSection'); 
+            const dySection = document.getElementById('dynamicAdjustSection');
+
             if (enabled) {
                 statusElement.innerHTML = `状态: <span style="color: #48bb78;">编队中</span> - 领航者: ${leaderId.replace('CAR', 'ROBOT#')}, 队形: ${formationType}`;
+                if(kbSection) kbSection.style.display = 'block';
+                if(dySection) dySection.style.display = 'block';
             } else {
                 statusElement.innerHTML = '状态: <span style="color: #f56565;">未启动</span>';
+                if(kbSection) kbSection.style.display = 'none';
+                if(dySection) dySection.style.display = 'none';
+                
+                const kbCheckbox = document.getElementById('enableKeyboardCtrl');
+                if (kbCheckbox && kbCheckbox.checked) {
+                    kbCheckbox.checked = false;
+                    kbCheckbox.dispatchEvent(new Event('change'));
+                }
             }
         }
 
-        // 显示/隐藏自定义编队设置
         document.getElementById('formationType').addEventListener('change', function() {
             const customSection = document.getElementById('customFormationSection');
             if (this.value === 'custom') {
@@ -2046,108 +2095,69 @@
             }
         });
 
-        // 领航者选择变化时更新动态调整面板
         document.getElementById('leaderSelector').addEventListener('change', function() {
             updateDynamicAdjustSection(this.value);
         });
 
-        // 更新动态调整面板
         function updateDynamicAdjustSection(leaderId) {
-            const dynamicSection = document.getElementById('dynamicAdjustSection');
             const container = document.getElementById('followerInputsContainer');
-
-            // 生成新的输入框
             container.innerHTML = generateFollowerInputs(leaderId);
-
-            // 设置默认值（根据队形类型）
             const formationType = document.getElementById('formationType').value;
             setDefaultOffsets(formationType, leaderId);
         }
 
-        // 队形类型变化时也更新默认值
         document.getElementById('formationType').addEventListener('change', function() {
             const leaderId = document.getElementById('leaderSelector').value;
             setDefaultOffsets(this.value, leaderId);
         });
 
-        // 定期获取编队状态
         async function getFormationStatus() {
             try {
                 const response = await fetch('/api/formation/status');
                 const status = await response.json();
                 if (status.formation_enabled) {
                     updateFormationStatus(true, status.formation_leader, status.formation_type);
-                    document.getElementById('dynamicAdjustSection').style.display = 'block';
                 } else {
                     updateFormationStatus(false);
-                    document.getElementById('dynamicAdjustSection').style.display = 'none';
                 }
             } catch (error) {
                 console.error('获取编队状态失败:', error);
             }
         }
 
-        // 在页面加载时初始化
         document.addEventListener('DOMContentLoaded', function() {
-            // 初始化队形预览
             initFormationPreview();
-            
-            // 加载默认队形预览
             loadFormationPreview('line');
-
-            // 初始化动态调整面板
             const initialLeader = document.getElementById('leaderSelector').value;
             updateDynamicAdjustSection(initialLeader);
-
-            // 开始定期获取状态
             setInterval(getFormationStatus, 3000);
         });
 
-        // 初始化
         document.addEventListener('DOMContentLoaded', function() {
             initCoordinateMap();
-
-            // 显示广播配置信息
             checkNetworkStatus();
-
-            // 初始获取小车数据
             fetchCars();
-
-            // 更快的更新频率：每150ms更新一次
             setInterval(fetchCars, 150);
 
-            // 小车选择器变化事件
             document.getElementById('carSelector').addEventListener('change', function() {
                 selectedCarId = this.value;
                 updateCarList();
             });
 
-            // 获取广播状态
             getBroadcastStatus();
-
-            // 定期更新广播状态
             setInterval(getBroadcastStatus, 5000);
-
-            // 获取拓扑状态
             getTopologyStatus();
-
-            // 定期更新拓扑状态
             setInterval(getTopologyStatus, 5000);
 
-            // 添加点击小车事件监听
             canvas.addEventListener('click', function(e) {
                 const rect = canvas.getBoundingClientRect();
                 const x = e.clientX - rect.left;
                 const y = e.clientY - rect.top;
 
-                // 检查是否点击了小车
                 cars.forEach(car => {
                     if (!car.connected) return;
-
                     const carX = coordinateToPixelX(car.position.x);
                     const carY = coordinateToPixelY(car.position.y);
-
-                    // 简单判断点击是否在小车附近
                     const distance = Math.sqrt(Math.pow(x - carX, 2) + Math.pow(y - carY, 2));
                     if (distance < 30) {
                         showCarPopup(car.id, e.clientX, e.clientY);
@@ -2155,15 +2165,165 @@
                     }
                 });
             });
-
-            console.log('🚀 智能小车坐标监控系统已启动 - 角度系统: 0°=X轴正向, 逆时针增加');
-            console.log('📡 广播配置:', BROADCAST_CONFIG);
-            console.log('🌐 确保小车监听端口:', BROADCAST_CONFIG.port);
-            console.log('💡 支持精简数据格式和完整数据格式');
-            console.log('📊 显示所有速度分量: Vx(线性速度X), Vy(线性速度Y), Vz(角速度Z)');
-            console.log('🔗 支持通信拓扑矩阵控制');
-            console.log('📐 坐标范围: X[' + COORDINATE_RANGE.minX + ', ' + COORDINATE_RANGE.maxX + '], Y[' + COORDINATE_RANGE.minY + ', ' + COORDINATE_RANGE.maxY + ']');
         });
+
+        // ==================== 终极键盘遥控核心逻辑 (强制霸体模式) ====================
+        const keyboardState = {
+            w: false, a: false, s: false, d: false, q: false, e: false
+        };
+        
+        const keyMap = {
+            'KeyW': 'w', 'KeyA': 'a', 'KeyS': 's', 'KeyD': 'd', 'KeyQ': 'q', 'KeyE': 'e'
+        };
+        
+        let keyboardCtrlActive = false;
+        let isMoving = false; 
+        let keyboardLoopTimer = null;
+
+        const MAX_RC_SPEED = 0.25;  
+        const MAX_RC_YAW = 0.5;     
+
+        document.getElementById('enableKeyboardCtrl').addEventListener('change', function(e) {
+            keyboardCtrlActive = e.target.checked;
+            const rcBody = document.getElementById('rcBody');
+            
+            if (keyboardCtrlActive) {
+                showMessage('🎮 键盘遥控已启用！请直接按下 WASD+QE', 'success');
+                rcBody.style.opacity = '1';
+                
+                // 开启遥控时，强制让页面上所有输入框失去焦点
+                if (document.activeElement) {
+                    document.activeElement.blur();
+                }
+                
+                if (!keyboardLoopTimer) keyboardLoopTimer = setInterval(processKeyboardControl, 50);
+            } else {
+                rcBody.style.opacity = '0.4';
+                sendVelocityCommand(0, 0, 0); 
+                
+                if (keyboardLoopTimer) {
+                    clearInterval(keyboardLoopTimer);
+                    keyboardLoopTimer = null;
+                }
+                
+                updateSpeedBar('bar-vx', 0, MAX_RC_SPEED);
+                updateSpeedBar('bar-vy', 0, MAX_RC_SPEED);
+                updateSpeedBar('bar-vz', 0, MAX_RC_YAW);
+                
+                Object.values(keyMap).forEach(k => {
+                    const el = document.getElementById('key-' + k);
+                    if (el) el.classList.remove('active');
+                });
+                Object.keys(keyboardState).forEach(k => keyboardState[k] = false);
+            }
+        });
+
+        // 监听按键按下 (加上 capture: true 强制最优先执行)
+        window.addEventListener('keydown', function(e) {
+            if (!keyboardCtrlActive) return;
+            
+            // 无论焦点在哪，只要遥控开着，强制剥夺输入框焦点
+            if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+                document.activeElement.blur();
+            }
+            
+            const mappedKey = keyMap[e.code];
+            if (mappedKey) {
+                keyboardState[mappedKey] = true;
+                const el = document.getElementById('key-' + mappedKey);
+                if (el) el.classList.add('active');
+                
+                // 彻底阻断浏览器的快捷键和插件默认行为
+                e.preventDefault(); 
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+            }
+        }, true);
+
+        // 监听按键抬起 (加上 capture: true 强制最优先执行)
+        window.addEventListener('keyup', function(e) {
+            if (!keyboardCtrlActive) return;
+            
+            const mappedKey = keyMap[e.code];
+            if (mappedKey) {
+                keyboardState[mappedKey] = false;
+                const el = document.getElementById('key-' + mappedKey);
+                if (el) el.classList.remove('active');
+                
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+            }
+        }, true);
+
+        // 更新精美速度进度条
+        function updateSpeedBar(id, val, maxVal) {
+            const fill = document.getElementById(id);
+            const valText = document.getElementById(id.replace('bar', 'val'));
+            if (valText) valText.innerText = val.toFixed(2);
+            
+            if (!fill) return;
+
+            const percent = Math.min(100, (Math.abs(val) / maxVal) * 100);
+            
+            if (val > 0.01) {
+                fill.style.left = '50%';
+                fill.style.right = 'auto';
+                fill.style.width = (percent / 2) + '%';
+            } else if (val < -0.01) {
+                fill.style.right = '50%';
+                fill.style.left = 'auto';
+                fill.style.width = (percent / 2) + '%';
+            } else {
+                fill.style.width = '0%';
+                fill.style.left = '50%';
+            }
+        }
+
+        // 核心动力学处理循环
+        function processKeyboardControl() {
+            let targetVx = 0;
+            let targetVy = 0;
+            let targetVz = 0;
+
+            if (keyboardState.w) targetVx += MAX_RC_SPEED;
+            if (keyboardState.s) targetVx -= MAX_RC_SPEED;
+            if (keyboardState.a) targetVy += MAX_RC_SPEED; 
+            if (keyboardState.d) targetVy -= MAX_RC_SPEED; 
+            if (keyboardState.q) targetVz += MAX_RC_YAW;   
+            if (keyboardState.e) targetVz -= MAX_RC_YAW;   
+
+            // 斜向移动归一化保护
+            if (targetVx !== 0 && targetVy !== 0) {
+                targetVx *= 0.707;
+                targetVy *= 0.707;
+            }
+
+            // 更新仪表盘 UI
+            updateSpeedBar('bar-vx', targetVx, MAX_RC_SPEED);
+            updateSpeedBar('bar-vy', targetVy, MAX_RC_SPEED);
+            updateSpeedBar('bar-vz', targetVz, MAX_RC_YAW);
+
+            if (targetVx !== 0 || targetVy !== 0 || targetVz !== 0) {
+                sendVelocityCommand(targetVx, targetVy, targetVz);
+                isMoving = true;
+            } else if (isMoving) {
+                sendVelocityCommand(0, 0, 0); 
+                isMoving = false;
+            }
+        }
+
+        function sendVelocityCommand(vx, vy, vz) {
+            const leaderId = document.getElementById('leaderSelector').value;
+            if (!leaderId) return;
+            
+            fetch('/api/control_velocity', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ car_id: leaderId, vx: vx, vy: vy, vz: vz })
+            }).catch(err => console.error("遥控请求失败:", err));
+        }
+
     </script>
 </body>
 </html>

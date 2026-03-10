@@ -1,13 +1,16 @@
 import json
 import time
 from flask import Blueprint, request, jsonify
+
 formation_bp = Blueprint('formation', __name__)
+
 formation_enabled = False
 formation_leader = None
 formation_type = "line"  # line, Diamond, square, custom
 formation_params = {}
 cars_dict = {} 
 udp_server = None 
+
 FORMATION_CONFIGS = {
     "line": {
         "CAR1": {"x": 0, "y": 0, "yaw": 0},
@@ -28,17 +31,20 @@ FORMATION_CONFIGS = {
         "CAR4": {"x": -0.7, "y": 0, "yaw": 0}
     }
 }
+
 def init_formation_controller(cars, server):
     global cars_dict, udp_server
     cars_dict = cars
     udp_server = server
     print("🔧 编队控制器初始化完成")
+
 def send_formation_command(car_id, command):
     if udp_server:
         return udp_server.send_to_car_reliable(car_id, command, max_retries=4)
     else:
         print(f"❌ UDP服务器未初始化，无法发送指令给 {car_id}")
         return False
+
 @formation_bp.route('/api/formation/start', methods=['POST'])
 def start_formation():
     global formation_enabled, formation_leader, formation_type
@@ -50,14 +56,17 @@ def start_formation():
     if leader_id not in cars_dict or not cars_dict[leader_id].connected:
         return jsonify({'success': False, 'error': f'领航者 {leader_id} 未连接'})
     print(f"🚀 启动编队控制 - 领航者: {leader_id}, 队形: {formation_type}")
+    
     if formation_type in FORMATION_CONFIGS:
         formation_offsets = FORMATION_CONFIGS[formation_type]
     else:
         formation_offsets = FORMATION_CONFIGS["line"]
+        
     old_leader = formation_leader
     formation_leader = leader_id
     formation_enabled = True
     print(f"🎯 直接启动编队，不发送停止指令")
+    
     success_count = 0
     total_cars = 0
     for car_id in cars_dict:
@@ -81,6 +90,7 @@ def start_formation():
                 if send_formation_command(car_id, follower_cmd):
                     print(f"🎯 向跟随者 {car_id} 发送偏移指令: {follower_cmd}")
                     success_count += 1
+                    
     if old_leader and old_leader != leader_id and old_leader in cars_dict:
         if cars_dict[old_leader].connected:
             start_cmd = f"[F,S,{leader_id},{formation_type}]"
@@ -88,6 +98,7 @@ def start_formation():
             follower_cmd = f"[F,F,{leader_id},{offset['x']},{offset['y']},{offset['yaw']}]"
             if send_formation_command(old_leader, start_cmd) and send_formation_command(old_leader, follower_cmd):
                 print(f"🔄 原领航者 {old_leader} 转换为跟随者")
+                
     unicast_success_rate = (success_count / total_cars * 100) if total_cars > 0 else 0
     return jsonify({
         'success': True,
@@ -99,6 +110,7 @@ def start_formation():
         'total_cars': total_cars,
         'success_rate': f'{unicast_success_rate:.1f}%'
     })
+
 @formation_bp.route('/api/formation/stop', methods=['POST'])
 def stop_formation():
     global formation_enabled
@@ -120,6 +132,7 @@ def stop_formation():
         'total_cars': total_cars,
         'success_rate': f'{unicast_success_rate:.1f}%'
     })
+
 @formation_bp.route('/api/formation/status')
 def get_formation_status():
     return jsonify({
@@ -127,6 +140,7 @@ def get_formation_status():
         'formation_leader': formation_leader,
         'formation_type': formation_type
     })
+
 @formation_bp.route('/api/formation/custom', methods=['POST'])
 def set_custom_formation():
     global formation_enabled, formation_leader
@@ -137,9 +151,11 @@ def set_custom_formation():
         return jsonify({'success': False, 'error': '需要提供领航者ID和编队偏移量'})
     if leader_id not in cars_dict or not cars_dict[leader_id].connected:
         return jsonify({'success': False, 'error': f'领航者 {leader_id} 未连接'})
+        
     formation_leader = leader_id
     formation_enabled = True
     print(f"🔧 设置自定义编队 - 领航者: {leader_id}, 偏移量: {custom_offsets}")
+    
     success_count = 0
     total_cars = 0
     for car_id in cars_dict:
@@ -157,6 +173,7 @@ def set_custom_formation():
             follower_cmd = f"FORMATION:FOLLOWER,{leader_id},{offset['x']},{offset['y']},{offset['yaw']}"
             if send_formation_command(car_id, start_cmd) and send_formation_command(car_id, follower_cmd):
                 success_count += 1
+                
     unicast_success_rate = (success_count / total_cars * 100) if total_cars > 0 else 0
     return jsonify({
         'success': True,
@@ -167,12 +184,14 @@ def set_custom_formation():
         'total_cars': total_cars,
         'success_rate': f'{unicast_success_rate:.1f}%'
     })
+
 @formation_bp.route('/api/formation/configs')
 def get_formation_configs():
     return jsonify({
         'success': True,
         'formation_configs': FORMATION_CONFIGS
     })
+
 @formation_bp.route('/api/formation/update_offsets', methods=['POST'])
 def update_formation_offsets():
     global formation_enabled, formation_leader
@@ -182,6 +201,7 @@ def update_formation_offsets():
     new_offsets = data.get('offsets', {})
     if not new_offsets:
         return jsonify({'success': False, 'error': '需要提供新的偏移量'})
+        
     print(f"🔄 更新编队偏移量: {new_offsets}")
     success_count = 0
     total_cars = 0
@@ -192,6 +212,7 @@ def update_formation_offsets():
             if send_formation_command(car_id, update_cmd):
                 print(f"🔄 向小车 {car_id} 发送偏移更新: {update_cmd}")
                 success_count += 1
+                
     success_rate = (success_count / total_cars * 100) if total_cars > 0 else 0
     return jsonify({
         'success': True,
@@ -199,6 +220,7 @@ def update_formation_offsets():
         'updated_cars': success_count,
         'success_rate': f'{success_rate:.1f}%'
     })
+
 def get_formation_info():
     return {
         'enabled': formation_enabled,
