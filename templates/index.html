@@ -520,6 +520,133 @@
             color: #fff;
             box-shadow: 0 0 0 #d68910;
         }
+        
+        /* 手柄摇杆可视化 */
+        .gamepad-visualizer {
+            margin: 12px 0 8px;
+        }
+        
+        .gamepad-body {
+            background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 45%, #e2e8f0 100%);
+            border: 1px solid #d7e0ea;
+            border-radius: 12px;
+            padding: 12px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 8px 18px rgba(15,23,42,0.10), inset 0 1px 2px rgba(255,255,255,0.8);
+        }
+
+        .gamepad-body::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at 20% 10%, rgba(255,255,255,0.65), rgba(255,255,255,0) 60%);
+            pointer-events: none;
+        }
+
+        .gamepad-body > * {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .gamepad-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 8px;
+            font-size: 10px;
+            color: #4a5568;
+            font-weight: bold;
+            background: rgba(226,232,240,0.6);
+            border: 1px solid rgba(203,213,224,0.6);
+            border-radius: 8px;
+            padding: 4px 6px;
+        }
+        
+        .stick-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 14px;
+        }
+        
+        .stick-block {
+            flex: 1;
+            text-align: center;
+        }
+        
+        .stick {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 6px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 35%, #f8fafc 0%, #e8eef6 45%, #dfe7f1 100%);
+            border: 2px solid #cbd5e0;
+            position: relative;
+            box-shadow: inset 0 2px 6px rgba(15,23,42,0.12), 0 4px 10px rgba(15,23,42,0.12);
+        }
+
+        .stick::before,
+        .stick::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            background: rgba(148,163,184,0.7);
+            transform: translate(-50%, -50%);
+        }
+
+        .stick::before {
+            width: 2px;
+            height: 70%;
+        }
+
+        .stick::after {
+            width: 70%;
+            height: 2px;
+        }
+        
+        .stick-dot {
+            width: 16px;
+            height: 16px;
+            background: radial-gradient(circle at 30% 30%, #7fc8ff, #3498db 70%);
+            border-radius: 50%;
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            transition: transform 0.08s ease-out;
+            box-shadow: 0 2px 4px rgba(15,23,42,0.25);
+            border: 1px solid rgba(255,255,255,0.7);
+        }
+        
+        .stick-label {
+            font-size: 10px;
+            color: #718096;
+        }
+        
+        .trigger-bars {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        
+        .trigger-bar {
+            flex: 1;
+            height: 8px;
+            background: #e5edf5;
+            border-radius: 5px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: inset 0 1px 2px rgba(15,23,42,0.15);
+        }
+        
+        .trigger-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #f6b26b, #e67e22);
+            transition: width 0.08s ease-out;
+        }
 
         /* 速度仪表盘 */
         .speed-dashboard {
@@ -829,6 +956,14 @@
                                                         <span class="slider"></span>
                                                     </label>
                                                 </div>
+                                                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
+                                                    <div style="font-size: 12px; font-weight: bold; color: #2c3e50;">🕹 手柄控制</div>
+                                                    <label class="switch" title="启用手柄遥控">
+                                                        <input type="checkbox" id="enableGamepadCtrl">
+                                                        <span class="slider"></span>
+                                                    </label>
+                                                </div>
+                                                <div id="gamepadStatus" style="font-size: 10px; color: #718096; margin-top: 4px;">手柄状态: 未检测</div>
                                                 <div id="rcBody" style="opacity: 0.4; pointer-events: none; transition: opacity 0.3s;">
                                                     
                                                     <div style="margin: 10px 0; background: #f8fafc; padding: 8px 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
@@ -843,7 +978,7 @@
                                                         <input type="range" id="angularSpeedSlider" min="0" max="2.2" step="0.1" value="1.10">
                                                     </div>
 
-                                                    <div class="keyboard-visualizer">
+                                                    <div class="keyboard-visualizer" id="keyboardVisualizer">
                                                         <div class="kb-row">
                                                             <div class="kb-key turn" id="key-q">Q<span>逆旋</span></div>
                                                             <div class="kb-key" id="key-w">W<span>前进</span></div>
@@ -853,6 +988,36 @@
                                                             <div class="kb-key" id="key-a">A<span>左移</span></div>
                                                             <div class="kb-key" id="key-s">S<span>后退</span></div>
                                                             <div class="kb-key" id="key-d">D<span>右移</span></div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="gamepad-visualizer" id="gamepadVisualizer" style="display: none;">
+                                                        <div class="gamepad-body">
+                                                            <div class="gamepad-row">
+                                                                <div>LB: 线速 -</div>
+                                                                <div>RB: 线速 +</div>
+                                                            </div>
+                                                            <div class="stick-row">
+                                                                <div class="stick-block">
+                                                                    <div class="stick">
+                                                                        <div class="stick-dot" id="stickLeftDot"></div>
+                                                                    </div>
+                                                                    <div class="stick-label">左摇杆 (Vx/Vy)</div>
+                                                                </div>
+                                                                <div class="stick-block">
+                                                                    <div class="stick">
+                                                                        <div class="stick-dot" id="stickRightDot"></div>
+                                                                    </div>
+                                                                    <div class="stick-label">右摇杆 (角速)</div>
+                                                                </div>
+                                                            </div>
+                                                            <div class="gamepad-row" style="margin-top: 6px;">
+                                                                <div>LT: 角速 -</div>
+                                                                <div>RT: 角速 +</div>
+                                                            </div>
+                                                            <div class="trigger-bars">
+                                                                <div class="trigger-bar"><div class="trigger-fill" id="triggerLeftFill"></div></div>
+                                                                <div class="trigger-bar"><div class="trigger-fill" id="triggerRightFill"></div></div>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                     <div class="speed-dashboard">
@@ -2159,8 +2324,26 @@
         };
         
         let keyboardCtrlActive = false;
-        let isMoving = false; 
+        let keyboardIsMoving = false;
         let keyboardLoopTimer = null;
+
+        let gamepadCtrlActive = false;
+        let gamepadIsMoving = false;
+        let gamepadLoopTimer = null;
+        let activeGamepadIndex = null;
+
+        const GAMEPAD_POLL_INTERVAL = 50;
+        const GAMEPAD_DEADZONE = 0.08;
+        const GAMEPAD_SPEED_STEP_LINEAR = 0.05;
+        const GAMEPAD_SPEED_STEP_ANGULAR = 0.1;
+        const GAMEPAD_SPEED_REPEAT_MS = 120;
+
+        const speedAdjustState = {
+            lb: { pressed: false, lastTick: 0 },
+            rb: { pressed: false, lastTick: 0 },
+            lt: { pressed: false, lastTick: 0 },
+            rt: { pressed: false, lastTick: 0 }
+        };
 
         // 监听滑块数值变化并更新显示
         document.getElementById('linearSpeedSlider').addEventListener('input', function(e) {
@@ -2170,41 +2353,117 @@
             document.getElementById('angularSpeedVal').innerText = parseFloat(e.target.value).toFixed(2);
         });
 
+        function updateRcBodyState() {
+            const rcBody = document.getElementById('rcBody');
+            if (!rcBody) return;
+            const enabled = keyboardCtrlActive || gamepadCtrlActive;
+            rcBody.style.opacity = enabled ? '1' : '0.4';
+            rcBody.style.pointerEvents = enabled ? 'auto' : 'none';
+            updateRemoteModeUi();
+        }
+
+        function updateRemoteModeUi() {
+            const kbVis = document.getElementById('keyboardVisualizer');
+            const gpVis = document.getElementById('gamepadVisualizer');
+
+            if (gamepadCtrlActive) {
+                if (kbVis) kbVis.style.display = 'none';
+                if (gpVis) gpVis.style.display = 'block';
+            } else {
+                if (kbVis) kbVis.style.display = 'block';
+                if (gpVis) gpVis.style.display = 'none';
+            }
+        }
+
+        function resetRemoteUiState() {
+            updateSpeedBar('bar-vx', 0, 0.7);
+            updateSpeedBar('bar-vy', 0, 0.7);
+            updateSpeedBar('bar-vz', 0, 2.2);
+
+            updateStickDot('stickLeftDot', 0, 0);
+            updateStickDot('stickRightDot', 0, 0);
+            updateTriggerFill('triggerLeftFill', 0);
+            updateTriggerFill('triggerRightFill', 0);
+
+            Object.values(keyMap).forEach(k => {
+                const el = document.getElementById('key-' + k);
+                if (el) el.classList.remove('active');
+            });
+            Object.keys(keyboardState).forEach(k => keyboardState[k] = false);
+        }
+
         document.getElementById('enableKeyboardCtrl').addEventListener('change', function(e) {
             keyboardCtrlActive = e.target.checked;
-            const rcBody = document.getElementById('rcBody');
             
             if (keyboardCtrlActive) {
-                showMessage('🎮 键盘遥控已启用！请直接按下 WASD+QE', 'success');
-                rcBody.style.opacity = '1';
-                rcBody.style.pointerEvents = 'auto'; // <--- 关键修复：允许鼠标拖动滑块
+                if (gamepadCtrlActive) {
+                    const gpToggle = document.getElementById('enableGamepadCtrl');
+                    if (gpToggle && gpToggle.checked) {
+                        gpToggle.checked = false;
+                        gpToggle.dispatchEvent(new Event('change'));
+                    }
+                }
 
-                // 开启遥控时，强制让页面上所有输入框失去焦点
+                showMessage('🎮 键盘遥控已启用！请直接按下 WASD+QE', 'success');
+
                 if (document.activeElement) {
                     document.activeElement.blur();
                 }
                 
                 if (!keyboardLoopTimer) keyboardLoopTimer = setInterval(processKeyboardControl, 50);
             } else {
-                rcBody.style.opacity = '0.4';
-                rcBody.style.pointerEvents = 'none'; // <--- 关键修复：关闭时禁用鼠标
-                sendVelocityCommand(0, 0, 0); 
-                
                 if (keyboardLoopTimer) {
                     clearInterval(keyboardLoopTimer);
                     keyboardLoopTimer = null;
                 }
-                
-                updateSpeedBar('bar-vx', 0, 0.7);
-                updateSpeedBar('bar-vy', 0, 0.7);
-                updateSpeedBar('bar-vz', 0, 2.2);
-                
-                Object.values(keyMap).forEach(k => {
-                    const el = document.getElementById('key-' + k);
-                    if (el) el.classList.remove('active');
-                });
-                Object.keys(keyboardState).forEach(k => keyboardState[k] = false);
+                keyboardIsMoving = false;
+
+                if (!gamepadCtrlActive) {
+                    sendVelocityCommand(0, 0, 0); 
+                    resetRemoteUiState();
+                }
             }
+
+            updateRcBodyState();
+        });
+
+        document.getElementById('enableGamepadCtrl').addEventListener('change', function(e) {
+            gamepadCtrlActive = e.target.checked;
+
+            if (gamepadCtrlActive) {
+                if (keyboardCtrlActive) {
+                    const kbToggle = document.getElementById('enableKeyboardCtrl');
+                    if (kbToggle && kbToggle.checked) {
+                        kbToggle.checked = false;
+                        kbToggle.dispatchEvent(new Event('change'));
+                    }
+                }
+
+                if (!navigator.getGamepads) {
+                    showMessage('当前浏览器不支持手柄', 'error');
+                    e.target.checked = false;
+                    gamepadCtrlActive = false;
+                    updateRcBodyState();
+                    return;
+                }
+
+                showMessage('🕹 手柄遥控已启用！移动摇杆即可控制', 'success');
+                if (!gamepadLoopTimer) gamepadLoopTimer = setInterval(processGamepadControl, GAMEPAD_POLL_INTERVAL);
+                updateGamepadStatus(getActiveGamepad());
+            } else {
+                if (gamepadLoopTimer) {
+                    clearInterval(gamepadLoopTimer);
+                    gamepadLoopTimer = null;
+                }
+                gamepadIsMoving = false;
+
+                if (!keyboardCtrlActive) {
+                    sendVelocityCommand(0, 0, 0);
+                    resetRemoteUiState();
+                }
+            }
+
+            updateRcBodyState();
         });
 
         // 监听按键按下 (加上 capture: true 强制最优先执行)
@@ -2250,7 +2509,6 @@
             const fill = document.getElementById(id);
             const valText = document.getElementById(id.replace('bar', 'val'));
             if (valText) valText.innerText = val.toFixed(2);
-            
             if (!fill) return;
 
             const percent = Math.min(100, (Math.abs(val) / maxVal) * 100);
@@ -2266,6 +2524,37 @@
             } else {
                 fill.style.width = '0%';
                 fill.style.left = '50%';
+            }
+        }
+
+        function clamp(val, min, max) {
+            return Math.min(max, Math.max(min, val));
+        }
+
+        function adjustSliderValue(sliderId, valueId, delta, min, max) {
+            const slider = document.getElementById(sliderId);
+            if (!slider) return;
+            let current = parseFloat(slider.value);
+            if (isNaN(current)) current = 0;
+            const next = clamp(current + delta, min, max);
+            slider.value = next.toFixed(2);
+            const valueEl = document.getElementById(valueId);
+            if (valueEl) valueEl.innerText = next.toFixed(2);
+        }
+
+        function handleSpeedAdjust(key, pressed, delta, min, max, sliderId, valueId, now) {
+            const state = speedAdjustState[key];
+            if (!state) return;
+
+            if (pressed) {
+                const shouldTick = !state.pressed || (now - state.lastTick >= GAMEPAD_SPEED_REPEAT_MS);
+                if (shouldTick) {
+                    adjustSliderValue(sliderId, valueId, delta, min, max);
+                    state.lastTick = now;
+                }
+                state.pressed = true;
+            } else {
+                state.pressed = false;
             }
         }
 
@@ -2299,12 +2588,141 @@
 
             if (targetVx !== 0 || targetVy !== 0 || targetVz !== 0) {
                 sendVelocityCommand(targetVx, targetVy, targetVz);
-                isMoving = true;
-            } else if (isMoving) {
+                keyboardIsMoving = true;
+            } else if (keyboardIsMoving) {
                 sendVelocityCommand(0, 0, 0); 
-                isMoving = false;
+                keyboardIsMoving = false;
             }
         }
+
+        function updateGamepadStatus(gamepad) {
+            const statusEl = document.getElementById('gamepadStatus');
+            if (!statusEl) return;
+
+            if (gamepad) {
+                const name = (gamepad.id || 'Gamepad').split('(')[0].trim();
+                statusEl.textContent = `手柄状态: 已连接 ${name}`;
+                statusEl.style.color = '#48bb78';
+            } else {
+                statusEl.textContent = '手柄状态: 未检测';
+                statusEl.style.color = '#718096';
+            }
+        }
+
+        function getActiveGamepad() {
+            if (!navigator.getGamepads) return null;
+            const pads = navigator.getGamepads();
+            if (activeGamepadIndex !== null && pads[activeGamepadIndex]) {
+                return pads[activeGamepadIndex];
+            }
+            for (let i = 0; i < pads.length; i++) {
+                if (pads[i]) {
+                    activeGamepadIndex = i;
+                    return pads[i];
+                }
+            }
+            return null;
+        }
+
+        function applyDeadzone(value, deadzone) {
+            const absVal = Math.abs(value);
+            if (absVal < deadzone) return 0;
+            const scaled = (absVal - deadzone) / (1 - deadzone);
+            return value < 0 ? -scaled : scaled;
+        }
+
+        function updateStickDot(dotId, x, y) {
+            const dot = document.getElementById(dotId);
+            if (!dot) return;
+            const maxOffset = 14;
+            const clampedX = Math.max(-1, Math.min(1, x));
+            const clampedY = Math.max(-1, Math.min(1, y));
+            const offsetX = clampedX * maxOffset;
+            const offsetY = clampedY * maxOffset;
+            dot.style.transform = `translate(-50%, -50%) translate(${offsetX}px, ${offsetY}px)`;
+        }
+
+        function updateTriggerFill(fillId, value) {
+            const fill = document.getElementById(fillId);
+            if (!fill) return;
+            const percent = Math.round(clamp(value, 0, 1) * 100);
+            fill.style.width = `${percent}%`;
+        }
+
+        function processGamepadControl() {
+            const pad = getActiveGamepad();
+            if (!pad) {
+                updateGamepadStatus(null);
+                updateStickDot('stickLeftDot', 0, 0);
+                updateStickDot('stickRightDot', 0, 0);
+                updateTriggerFill('triggerLeftFill', 0);
+                updateTriggerFill('triggerRightFill', 0);
+                if (gamepadIsMoving) {
+                    sendVelocityCommand(0, 0, 0);
+                    gamepadIsMoving = false;
+                }
+                return;
+            }
+
+            updateGamepadStatus(pad);
+
+            const maxLinear = parseFloat(document.getElementById('linearSpeedSlider').value);
+            const maxAngular = parseFloat(document.getElementById('angularSpeedSlider').value);
+
+            const leftX = applyDeadzone(pad.axes[0] || 0, GAMEPAD_DEADZONE);
+            const leftY = applyDeadzone(pad.axes[1] || 0, GAMEPAD_DEADZONE);
+            const rightX = applyDeadzone((pad.axes.length > 2 ? pad.axes[2] : 0), GAMEPAD_DEADZONE);
+
+            const leftTrigger = pad.buttons[6] ? pad.buttons[6].value : 0;
+            const rightTrigger = pad.buttons[7] ? pad.buttons[7].value : 0;
+
+            const now = performance.now();
+            const lbPressed = pad.buttons[4] ? pad.buttons[4].pressed : false;
+            const rbPressed = pad.buttons[5] ? pad.buttons[5].pressed : false;
+            const ltPressed = leftTrigger > 0.5;
+            const rtPressed = rightTrigger > 0.5;
+
+            handleSpeedAdjust('lb', lbPressed, -GAMEPAD_SPEED_STEP_LINEAR, 0, 0.7, 'linearSpeedSlider', 'linearSpeedVal', now);
+            handleSpeedAdjust('rb', rbPressed, GAMEPAD_SPEED_STEP_LINEAR, 0, 0.7, 'linearSpeedSlider', 'linearSpeedVal', now);
+            handleSpeedAdjust('lt', ltPressed, -GAMEPAD_SPEED_STEP_ANGULAR, 0, 2.2, 'angularSpeedSlider', 'angularSpeedVal', now);
+            handleSpeedAdjust('rt', rtPressed, GAMEPAD_SPEED_STEP_ANGULAR, 0, 2.2, 'angularSpeedSlider', 'angularSpeedVal', now);
+
+            updateStickDot('stickLeftDot', leftX, leftY);
+            updateStickDot('stickRightDot', rightX, 0);
+            updateTriggerFill('triggerLeftFill', leftTrigger);
+            updateTriggerFill('triggerRightFill', rightTrigger);
+
+            let targetVx = -leftY * maxLinear;
+            let targetVy = -leftX * maxLinear;
+            let targetVz = -rightX * maxAngular;
+
+            updateSpeedBar('bar-vx', targetVx, 0.7);
+            updateSpeedBar('bar-vy', targetVy, 0.7);
+            updateSpeedBar('bar-vz', targetVz, 2.2);
+
+            if (targetVx !== 0 || targetVy !== 0 || targetVz !== 0) {
+                sendVelocityCommand(targetVx, targetVy, targetVz);
+                gamepadIsMoving = true;
+            } else if (gamepadIsMoving) {
+                sendVelocityCommand(0, 0, 0);
+                gamepadIsMoving = false;
+            }
+        }
+
+        window.addEventListener('gamepadconnected', function(e) {
+            activeGamepadIndex = e.gamepad.index;
+            updateGamepadStatus(e.gamepad);
+            if (gamepadCtrlActive && !gamepadLoopTimer) {
+                gamepadLoopTimer = setInterval(processGamepadControl, GAMEPAD_POLL_INTERVAL);
+            }
+        });
+
+        window.addEventListener('gamepaddisconnected', function(e) {
+            if (activeGamepadIndex === e.gamepad.index) {
+                activeGamepadIndex = null;
+            }
+            updateGamepadStatus(null);
+        });
 
         function sendVelocityCommand(vx, vy, vz) {
             const leaderId = document.getElementById('leaderSelector').value;
