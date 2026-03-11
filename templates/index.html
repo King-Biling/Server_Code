@@ -270,32 +270,6 @@
             color: #2d3748;
         }
 
-        /* 电池样式 */
-        .battery {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-        }
-
-        .battery-level {
-            width: 30px;
-            height: 12px;
-            background: #e2e8f0;
-            border-radius: 2px;
-            overflow: hidden;
-            position: relative;
-        }
-
-        .battery-fill {
-            height: 100%;
-            background: #48bb78;
-            transition: width 0.3s ease;
-        }
-
-        .battery-low {
-            background: #f56565;
-        }
-
         /* 控制面板 */
         .control-panel {
             background: white;
@@ -414,7 +388,7 @@
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
 
-        /* ===== 新增：精美遥控卡片样式 ===== */
+        /* ===== 精美遥控卡片样式 ===== */
         .rc-panel {
             background: linear-gradient(to bottom right, #ffffff, #f1f5f9);
             border: 1px solid #e2e8f0;
@@ -463,6 +437,33 @@
         }
         input:checked + .slider:before {
             transform: translateX(16px);
+        }
+
+        /* 自定义拖动条(Range)样式 */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]:focus {
+            outline: none;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 14px;
+            width: 14px;
+            border-radius: 50%;
+            background: #3498db;
+            cursor: pointer;
+            margin-top: -5px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #cbd5e0;
+            border-radius: 2px;
         }
 
         /* 虚拟键盘可视化 */
@@ -829,6 +830,19 @@
                                                     </label>
                                                 </div>
                                                 <div id="rcBody" style="opacity: 0.4; pointer-events: none; transition: opacity 0.3s;">
+                                                    
+                                                    <div style="margin: 10px 0; background: #f8fafc; padding: 8px 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
+                                                        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #2c3e50; margin-bottom: 4px; font-weight: bold;">
+                                                            <span>最大线速度 (0 ~ 0.7 m/s)</span> <span id="linearSpeedVal" style="color: #3498db;">0.35</span>
+                                                        </div>
+                                                        <input type="range" id="linearSpeedSlider" min="0" max="0.7" step="0.05" value="0.35" style="margin-bottom: 12px;">
+
+                                                        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #2c3e50; margin-bottom: 4px; font-weight: bold;">
+                                                            <span>最大角速度 (0 ~ 0.7π rad/s)</span> <span id="angularSpeedVal" style="color: #e67e22;">1.10</span>
+                                                        </div>
+                                                        <input type="range" id="angularSpeedSlider" min="0" max="2.2" step="0.1" value="1.10">
+                                                    </div>
+
                                                     <div class="keyboard-visualizer">
                                                         <div class="kb-row">
                                                             <div class="kb-key turn" id="key-q">Q<span>逆旋</span></div>
@@ -1414,11 +1428,11 @@
                 if (!car.connected) return;
                 const pixelX = coordinateToPixelX(car.position.x);
                 const pixelY = coordinateToPixelY(car.position.y);
-                drawCarPointer(pixelX, pixelY, car.heading, car.id, car.battery, car.velocity);
+                drawCarPointer(pixelX, pixelY, car.heading, car.id, car.velocity);
             });
         }
 
-        function drawCarPointer(x, y, heading, carId, battery, velocity) {
+        function drawCarPointer(x, y, heading, carId, velocity) {
             const pointerSize = 18;
             const pointerLength = 25;
 
@@ -1445,23 +1459,8 @@
             ctx.font = 'bold 13px Arial';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'bottom';
-            ctx.fillText(displayId, x, y - pointerLength/2 - 5);
-
-            const batteryWidth = 25;
-            const batteryHeight = 7;
-            const batteryX = x - batteryWidth/2;
-            const batteryY = y + pointerLength/2 + 8;
-
-            ctx.strokeStyle = '#95a5a6';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(batteryX, batteryY, batteryWidth, batteryHeight);
-
-            ctx.fillStyle = '#95a5a6';
-            ctx.fillRect(batteryX + batteryWidth, batteryY + batteryHeight/4, 2, batteryHeight/2);
-
-            const batteryLevel = Math.min(100, Math.max(0, (battery - 10) / 2.6 * 100));
-            ctx.fillStyle = batteryLevel < 20 ? '#e74c3c' : '#2ecc71';
-            ctx.fillRect(batteryX + 1, batteryY + 1, (batteryWidth - 2) * batteryLevel / 100, batteryHeight - 2);
+            // 调整文字的Y坐标，因为移除了电池UI
+            ctx.fillText(displayId, x, y - pointerLength/2 - 2);
 
             if (velocity && (velocity.vx !== 0 || velocity.vy !== 0)) {
                 const speedScale = 40; 
@@ -1496,7 +1495,6 @@
                         y: Array.isArray(carData.p) ? carData.p[1] : (carData.position?.y || 0)
                     },
                     heading: carData.h || carData.heading || 0,
-                    battery: carData.b || carData.battery || 0,
                     velocity: {
                         vx: Array.isArray(carData.v) ? carData.v[0] : (carData.velocity?.vx || 0),
                         vy: Array.isArray(carData.v) ? carData.v[1] : (carData.velocity?.vy || 0),
@@ -1580,7 +1578,7 @@
                             <span class="detail-label">航向角</span>
                             <span class="detail-value">${car.heading.toFixed(1)}°</span>
                         </div>
-                        <div class="detail-item">
+                        <div class="detail-item" style="grid-column: span 2;">
                             <span class="detail-label">速度</span>
                             <span class="detail-value">
                                 ${car.speed.toFixed(3)} m/s
@@ -1590,18 +1588,6 @@
                                         <span>Vy: ${car.velocity.vy.toFixed(3)}</span>
                                         <span>ω : ${car.velocity.vz.toFixed(3)}</span>
                                     </div>
-                                </div>
-                            </span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="detail-label">电压</span>
-                            <span class="detail-value">
-                                <div class="battery">
-                                    <div class="battery-level">
-                                        <div class="battery-fill ${car.battery < 11 ? 'battery-low' : ''}"
-                                             style="width: ${Math.min(100, Math.max(0, (car.battery - 10) / 2.6 * 100))}%"></div>
-                                    </div>
-                                    ${car.battery.toFixed(1)}V
                                 </div>
                             </span>
                         </div>
@@ -1782,7 +1768,7 @@
             }
         }
 
-        // ==================== 拓扑 Bug 修复 ====================
+        // ==================== 拓扑状态 ====================
         let isTopologyLoaded = false;
         async function getTopologyStatus() {
             try {
@@ -1877,7 +1863,7 @@
                     <span class="detail-label">航向角</span>
                     <span class="detail-value">${car.heading.toFixed(1)}°</span>
                 </div>
-                <div class="detail-item">
+                <div class="detail-item" style="grid-column: span 2;">
                     <span class="detail-label">速度</span>
                     <span class="detail-value">
                         ${car.speed.toFixed(3)} m/s
@@ -1887,10 +1873,6 @@
                             <div>Vz: ${car.velocity.vz.toFixed(3)} rad/s</div>
                         </div>
                     </span>
-                </div>
-                <div class="detail-item">
-                    <span class="detail-label">电压</span>
-                    <span class="detail-value">${car.battery.toFixed(1)}V</span>
                 </div>
                 <div class="detail-item">
                     <span class="detail-label">状态</span>
@@ -2167,7 +2149,7 @@
             });
         });
 
-        // ==================== 终极键盘遥控核心逻辑 (强制霸体模式) ====================
+        // ==================== 终极键盘遥控核心逻辑 (带速度调节与强制霸体) ====================
         const keyboardState = {
             w: false, a: false, s: false, d: false, q: false, e: false
         };
@@ -2180,8 +2162,13 @@
         let isMoving = false; 
         let keyboardLoopTimer = null;
 
-        const MAX_RC_SPEED = 0.25;  
-        const MAX_RC_YAW = 0.5;     
+        // 监听滑块数值变化并更新显示
+        document.getElementById('linearSpeedSlider').addEventListener('input', function(e) {
+            document.getElementById('linearSpeedVal').innerText = parseFloat(e.target.value).toFixed(2);
+        });
+        document.getElementById('angularSpeedSlider').addEventListener('input', function(e) {
+            document.getElementById('angularSpeedVal').innerText = parseFloat(e.target.value).toFixed(2);
+        });
 
         document.getElementById('enableKeyboardCtrl').addEventListener('change', function(e) {
             keyboardCtrlActive = e.target.checked;
@@ -2190,7 +2177,8 @@
             if (keyboardCtrlActive) {
                 showMessage('🎮 键盘遥控已启用！请直接按下 WASD+QE', 'success');
                 rcBody.style.opacity = '1';
-                
+                rcBody.style.pointerEvents = 'auto'; // <--- 关键修复：允许鼠标拖动滑块
+
                 // 开启遥控时，强制让页面上所有输入框失去焦点
                 if (document.activeElement) {
                     document.activeElement.blur();
@@ -2199,6 +2187,7 @@
                 if (!keyboardLoopTimer) keyboardLoopTimer = setInterval(processKeyboardControl, 50);
             } else {
                 rcBody.style.opacity = '0.4';
+                rcBody.style.pointerEvents = 'none'; // <--- 关键修复：关闭时禁用鼠标
                 sendVelocityCommand(0, 0, 0); 
                 
                 if (keyboardLoopTimer) {
@@ -2206,9 +2195,9 @@
                     keyboardLoopTimer = null;
                 }
                 
-                updateSpeedBar('bar-vx', 0, MAX_RC_SPEED);
-                updateSpeedBar('bar-vy', 0, MAX_RC_SPEED);
-                updateSpeedBar('bar-vz', 0, MAX_RC_YAW);
+                updateSpeedBar('bar-vx', 0, 0.7);
+                updateSpeedBar('bar-vy', 0, 0.7);
+                updateSpeedBar('bar-vz', 0, 2.2);
                 
                 Object.values(keyMap).forEach(k => {
                     const el = document.getElementById('key-' + k);
@@ -2286,23 +2275,27 @@
             let targetVy = 0;
             let targetVz = 0;
 
-            if (keyboardState.w) targetVx += MAX_RC_SPEED;
-            if (keyboardState.s) targetVx -= MAX_RC_SPEED;
-            if (keyboardState.a) targetVy += MAX_RC_SPEED; 
-            if (keyboardState.d) targetVy -= MAX_RC_SPEED; 
-            if (keyboardState.q) targetVz += MAX_RC_YAW;   
-            if (keyboardState.e) targetVz -= MAX_RC_YAW;   
+            // 动态读取滑块设定的最大速度
+            const maxLinear = parseFloat(document.getElementById('linearSpeedSlider').value);
+            const maxAngular = parseFloat(document.getElementById('angularSpeedSlider').value);
 
-            // 斜向移动归一化保护
+            if (keyboardState.w) targetVx += maxLinear;
+            if (keyboardState.s) targetVx -= maxLinear;
+            if (keyboardState.a) targetVy += maxLinear; 
+            if (keyboardState.d) targetVy -= maxLinear; 
+            if (keyboardState.q) targetVz += maxAngular;   
+            if (keyboardState.e) targetVz -= maxAngular;   
+
+            // 斜向移动归一化保护 (乘 0.707)
             if (targetVx !== 0 && targetVy !== 0) {
                 targetVx *= 0.707;
                 targetVy *= 0.707;
             }
 
-            // 更新仪表盘 UI
-            updateSpeedBar('bar-vx', targetVx, MAX_RC_SPEED);
-            updateSpeedBar('bar-vy', targetVy, MAX_RC_SPEED);
-            updateSpeedBar('bar-vz', targetVz, MAX_RC_YAW);
+            // 更新仪表盘 UI (基准最大刻度定为系统极值 0.7 和 2.2)
+            updateSpeedBar('bar-vx', targetVx, 0.7);
+            updateSpeedBar('bar-vy', targetVy, 0.7);
+            updateSpeedBar('bar-vz', targetVz, 2.2);
 
             if (targetVx !== 0 || targetVy !== 0 || targetVz !== 0) {
                 sendVelocityCommand(targetVx, targetVy, targetVz);
