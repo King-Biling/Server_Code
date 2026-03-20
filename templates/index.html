@@ -307,6 +307,7 @@
             border-radius: 5px;
             font-size: 12px;
             width: 100%;
+            transition: all 0.3s;
         }
 
         .action-btn {
@@ -319,11 +320,11 @@
             font-weight: bold;
             cursor: pointer;
             margin-top: 6px;
-            transition: background 0.2s ease;
+            transition: all 0.3s ease;
             font-size: 12px;
         }
 
-        .action-btn:hover {
+        .action-btn:hover:not(:disabled) {
             background: #2980b9;
         }
 
@@ -947,10 +948,66 @@
                                             </div>
                                         </div>
 
-                                        <div class="control-section" id="keyboardControlSection" style="display: none;">
+                                        <div class="control-section" id="customFormationSection" style="display: none;">
+                                            <h3>自定义编队偏移</h3>
+                                            <div style="font-size: 10px; color: #666; margin-bottom: 6px;">
+                                                格式: {"CAR2": {"x": 0.7, "y": 0, "yaw": 0}...}
+                                            </div>
+                                            <textarea id="customOffsets" class="coord-input" rows="3" placeholder='{"CAR2": {"x": -0.7, "y": 0, "yaw": 0}, "CAR3": {"x": -1.4, "y": 0, "yaw": 0}, "CAR4": {"x": -2.1, "y": 0, "yaw": 0}}' style="width: 100%; font-size: 10px;"></textarea>
+                                            <button class="action-btn" onclick="setCustomFormation()" style="margin-top: 6px;">设置自定义编队</button>
+                                        </div>
+
+                                        <div class="control-section" id="dynamicAdjustSection" style="display: none;">
+                                            <h3>动态调整</h3>
+                                            <div style="font-size: 10px; color: #666; margin-bottom: 6px;">
+                                                实时调整队形（仅限跟随者）
+                                            </div>
+                                            <div class="position-control" id="followerInputsContainer">
+                                                </div>
+                                            <button class="action-btn" onclick="updateFormationOffsets()" style="margin-top: 6px;">更新偏移量</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                    </div>
+                    <div class="sidebar-right">
+                        <div class="right-controls">
+                            <div class="collapsible-section">
+                                <div class="section-header" onclick="toggleSection('carControlSection')">
+                                    小车控制
+                                </div>
+                                <div class="section-content expanded" id="carControlSection">
+                                    <div class="control-panel compact-control">
+                                        <div class="control-section">
+                                            <h3>选择控制的小车</h3>
+                                            <select id="carSelector" class="coord-input">
+                                                <option value="">-- 选择小车 --</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="control-section">
+                                            <h3>位置控制</h3>
+                                            <div class="position-control">
+                                                <div>
+                                                    <label>X坐标:</label>
+                                                    <input type="number" id="posX" class="coord-input" placeholder="X" step="0.1" min="-6" max="6">
+                                                </div>
+                                                <div>
+                                                    <label>Y坐标:</label>
+                                                    <input type="number" id="posY" class="coord-input" placeholder="Y" step="0.1" min="-6" max="6">
+                                                </div>
+                                                <div style="grid-column: span 2;">
+                                                    <label>航向角:</label>
+                                                    <input type="number" id="heading" class="coord-input" placeholder="角度" min="0" max="360">
+                                                </div>
+                                            </div>
+                                            <button class="action-btn" onclick="sendPositionCommand()">导航到指定位置</button>
+                                        </div>
+                                        
+                                        <div class="control-section" id="keyboardControlSection">
                                             <div class="rc-panel">
                                                 <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">
-                                                    <h3 style="color: #d35400; margin: 0; border: none; padding: 0;">🎮 领航者实时遥控</h3>
+                                                    <h3 id="rcTitle" style="color: #d35400; margin: 0; border: none; padding: 0;">🎮 单车实时遥控</h3>
                                                     <label class="switch" title="启用WASD遥控">
                                                         <input type="checkbox" id="enableKeyboardCtrl">
                                                         <span class="slider"></span>
@@ -1050,61 +1107,6 @@
                                             </div>
                                         </div>
 
-                                        <div class="control-section" id="customFormationSection" style="display: none;">
-                                            <h3>自定义编队偏移</h3>
-                                            <div style="font-size: 10px; color: #666; margin-bottom: 6px;">
-                                                格式: {"CAR2": {"x": 0.7, "y": 0, "yaw": 0}...}
-                                            </div>
-                                            <textarea id="customOffsets" class="coord-input" rows="3" placeholder='{"CAR2": {"x": -0.7, "y": 0, "yaw": 0}, "CAR3": {"x": -1.4, "y": 0, "yaw": 0}, "CAR4": {"x": -2.1, "y": 0, "yaw": 0}}' style="width: 100%; font-size: 10px;"></textarea>
-                                            <button class="action-btn" onclick="setCustomFormation()" style="margin-top: 6px;">设置自定义编队</button>
-                                        </div>
-
-                                        <div class="control-section" id="dynamicAdjustSection" style="display: none;">
-                                            <h3>动态调整</h3>
-                                            <div style="font-size: 10px; color: #666; margin-bottom: 6px;">
-                                                实时调整队形（仅限跟随者）
-                                            </div>
-                                            <div class="position-control" id="followerInputsContainer">
-                                                </div>
-                                            <button class="action-btn" onclick="updateFormationOffsets()" style="margin-top: 6px;">更新偏移量</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                    </div>
-                    <div class="sidebar-right">
-                        <div class="right-controls">
-                            <div class="collapsible-section">
-                                <div class="section-header" onclick="toggleSection('carControlSection')">
-                                    小车控制
-                                </div>
-                                <div class="section-content expanded" id="carControlSection">
-                                    <div class="control-panel compact-control">
-                                        <div class="control-section">
-                                            <h3>选择控制的小车</h3>
-                                            <select id="carSelector" class="coord-input">
-                                                <option value="">-- 选择小车 --</option>
-                                            </select>
-                                        </div>
-
-                                        <div class="control-section">
-                                            <h3>位置控制</h3>
-                                            <div class="position-control">
-                                                <div>
-                                                    <label>X坐标:</label>
-                                                    <input type="number" id="posX" class="coord-input" placeholder="X" step="0.1" min="-6" max="6">
-                                                </div>
-                                                <div>
-                                                    <label>Y坐标:</label>
-                                                    <input type="number" id="posY" class="coord-input" placeholder="Y" step="0.1" min="-6" max="6">
-                                                </div>
-                                                <div style="grid-column: span 2;">
-                                                    <label>航向角:</label>
-                                                    <input type="number" id="heading" class="coord-input" placeholder="角度" min="0" max="360">
-                                                </div>
-                                            </div>
-                                            <button class="action-btn" onclick="sendPositionCommand()">导航到指定位置</button>
-                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1624,7 +1626,6 @@
             ctx.font = 'bold 13px Arial';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'bottom';
-            // 调整文字的Y坐标，因为移除了电池UI
             ctx.fillText(displayId, x, y - pointerLength/2 - 2);
 
             if (velocity && (velocity.vx !== 0 || velocity.vy !== 0)) {
@@ -2213,18 +2214,36 @@
         // ==================== 更新状态函数 ====================
         function updateFormationStatus(enabled, leaderId = '', formationType = '') {
             const statusElement = document.getElementById('formationStatus');
-            const kbSection = document.getElementById('keyboardControlSection'); 
             const dySection = document.getElementById('dynamicAdjustSection');
+            const rcTitle = document.getElementById('rcTitle'); 
+            
+            // 获取单车控制区域的输入框和按钮
+            const singleCarInputs = document.querySelectorAll('#carSelector, #posX, #posY, #heading');
+            const singleCarBtn = document.querySelector('#carControlSection .action-btn');
 
             if (enabled) {
                 statusElement.innerHTML = `状态: <span style="color: #48bb78;">编队中</span> - 领航者: ${leaderId.replace('CAR', 'ROBOT#')}, 队形: ${formationType}`;
-                if(kbSection) kbSection.style.display = 'block';
                 if(dySection) dySection.style.display = 'block';
+                
+                // 编队启动：禁用单车位置控制和选择
+                singleCarInputs.forEach(el => { el.disabled = true; el.style.background = '#f0f0f0'; });
+                if (singleCarBtn) { singleCarBtn.disabled = true; singleCarBtn.style.opacity = '0.5'; singleCarBtn.style.cursor = 'not-allowed'; }
+                
+                // 动态修改遥控器标题
+                if(rcTitle) rcTitle.innerHTML = `🎮 领航者实时遥控 (${leaderId.replace('CAR', 'R#')})`;
+                
             } else {
                 statusElement.innerHTML = '状态: <span style="color: #f56565;">未启动</span>';
-                if(kbSection) kbSection.style.display = 'none';
                 if(dySection) dySection.style.display = 'none';
                 
+                // 编队停止：恢复单车控制
+                singleCarInputs.forEach(el => { el.disabled = false; el.style.background = '#fff'; });
+                if (singleCarBtn) { singleCarBtn.disabled = false; singleCarBtn.style.opacity = '1'; singleCarBtn.style.cursor = 'pointer'; }
+                
+                // 恢复遥控器标题
+                if(rcTitle) rcTitle.innerHTML = `🎮 单车实时遥控`;
+                
+                // 安全起见：退出编队时关闭键盘遥控，防止小车误动作
                 const kbCheckbox = document.getElementById('enableKeyboardCtrl');
                 if (kbCheckbox && kbCheckbox.checked) {
                     kbCheckbox.checked = false;
@@ -2724,14 +2743,27 @@
             updateGamepadStatus(null);
         });
 
+        // 核心修改点：根据编队状态智能选择控制对象
         function sendVelocityCommand(vx, vy, vz) {
-            const leaderId = document.getElementById('leaderSelector').value;
-            if (!leaderId) return;
+            let targetId = null;
+            
+            // 判断当前是否处于编队状态
+            const statusText = document.getElementById('formationStatus').innerText;
+            const isFormationActive = statusText.includes('编队中');
+
+            // 编队模式下强制接管领航者，单车模式下控制当前选中车辆
+            if (isFormationActive) {
+                targetId = document.getElementById('leaderSelector').value;
+            } else {
+                targetId = document.getElementById('carSelector').value;
+            }
+
+            if (!targetId) return;
             
             fetch('/api/control_velocity', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ car_id: leaderId, vx: vx, vy: vy, vz: vz })
+                body: JSON.stringify({ car_id: targetId, vx: vx, vy: vy, vz: vz })
             }).catch(err => console.error("遥控请求失败:", err));
         }
 

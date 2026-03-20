@@ -5,7 +5,8 @@ import json
 import random 
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
-from formation_controller import formation_bp, init_formation_controller  
+# 增加导入 get_formation_info
+from formation_controller import formation_bp, init_formation_controller, get_formation_info
 
 app = Flask(__name__)
 CORS(app)
@@ -510,6 +511,11 @@ def set_broadcast_group_size():
 
 @app.route('/api/control_position', methods=['POST'])
 def control_car_position():
+    # 核心拦截逻辑：如果在编队执行中，严禁独立位置控制
+    formation_info = get_formation_info()
+    if formation_info.get('enabled'):
+        return jsonify({'success': False, 'error': '编队执行中，已锁定单车独立控制！'})
+        
     data = request.json
     car_id = data.get('car_id')
     position = data.get('position')
@@ -523,12 +529,17 @@ def control_car_position():
     else:
         return jsonify({'success': False, 'error': f'小车 {car_id} 未连接'})
 
-# 新增：实时速度遥控接口
 @app.route('/api/control_velocity', methods=['POST'])
 def control_car_velocity():
     """实时速度控制接口 (用于键盘遥控)"""
     data = request.json
     car_id = data.get('car_id')
+    
+    # 核心拦截逻辑：如果在编队中，且控制对象不是领航者，则拒绝遥控
+    formation_info = get_formation_info()
+    if formation_info.get('enabled') and car_id != formation_info.get('leader'):
+        return jsonify({'success': False, 'error': '编队执行中，仅允许遥控领航者！'})
+        
     vx = data.get('vx', 0.0)
     vy = data.get('vy', 0.0)
     vz = data.get('vz', 0.0)
