@@ -2213,44 +2213,50 @@
 
         // ==================== 更新状态函数 ====================
         function updateFormationStatus(enabled, leaderId = '', formationType = '') {
-            const statusElement = document.getElementById('formationStatus');
-            const dySection = document.getElementById('dynamicAdjustSection');
-            const rcTitle = document.getElementById('rcTitle'); 
-            
-            // 获取单车控制区域的输入框和按钮
-            const singleCarInputs = document.querySelectorAll('#carSelector, #posX, #posY, #heading');
-            const singleCarBtn = document.querySelector('#carControlSection .action-btn');
+    const statusElement = document.getElementById('formationStatus');
+    const dySection = document.getElementById('dynamicAdjustSection');
+    const rcTitle = document.getElementById('rcTitle'); 
+    
+    // 【修复核心 1】：记录当前界面上的状态，用来判断我们是否是“刚刚退出编队”
+    const wasInFormation = statusElement.innerText.includes('编队中');
+    
+    // 获取单车控制区域的输入框和按钮
+    const singleCarInputs = document.querySelectorAll('#carSelector, #posX, #posY, #heading');
+    const singleCarBtn = document.querySelector('#carControlSection .action-btn');
 
-            if (enabled) {
-                statusElement.innerHTML = `状态: <span style="color: #48bb78;">编队中</span> - 领航者: ${leaderId.replace('CAR', 'ROBOT#')}, 队形: ${formationType}`;
-                if(dySection) dySection.style.display = 'block';
-                
-                // 编队启动：禁用单车位置控制和选择
-                singleCarInputs.forEach(el => { el.disabled = true; el.style.background = '#f0f0f0'; });
-                if (singleCarBtn) { singleCarBtn.disabled = true; singleCarBtn.style.opacity = '0.5'; singleCarBtn.style.cursor = 'not-allowed'; }
-                
-                // 动态修改遥控器标题
-                if(rcTitle) rcTitle.innerHTML = `🎮 领航者实时遥控 (${leaderId.replace('CAR', 'R#')})`;
-                
-            } else {
-                statusElement.innerHTML = '状态: <span style="color: #f56565;">未启动</span>';
-                if(dySection) dySection.style.display = 'none';
-                
-                // 编队停止：恢复单车控制
-                singleCarInputs.forEach(el => { el.disabled = false; el.style.background = '#fff'; });
-                if (singleCarBtn) { singleCarBtn.disabled = false; singleCarBtn.style.opacity = '1'; singleCarBtn.style.cursor = 'pointer'; }
-                
-                // 恢复遥控器标题
-                if(rcTitle) rcTitle.innerHTML = `🎮 单车实时遥控`;
-                
-                // 安全起见：退出编队时关闭键盘遥控，防止小车误动作
-                const kbCheckbox = document.getElementById('enableKeyboardCtrl');
-                if (kbCheckbox && kbCheckbox.checked) {
-                    kbCheckbox.checked = false;
-                    kbCheckbox.dispatchEvent(new Event('change'));
-                }
+    if (enabled) {
+        statusElement.innerHTML = `状态: <span style="color: #48bb78;">编队中</span> - 领航者: ${leaderId.replace('CAR', 'ROBOT#')}, 队形: ${formationType}`;
+        if(dySection) dySection.style.display = 'block';
+        
+        // 编队启动：禁用单车位置控制和选择
+        singleCarInputs.forEach(el => { el.disabled = true; el.style.background = '#f0f0f0'; });
+        if (singleCarBtn) { singleCarBtn.disabled = true; singleCarBtn.style.opacity = '0.5'; singleCarBtn.style.cursor = 'not-allowed'; }
+        
+        // 动态修改遥控器标题
+        if(rcTitle) rcTitle.innerHTML = `🎮 领航者实时遥控 (${leaderId.replace('CAR', 'R#')})`;
+        
+    } else {
+        statusElement.innerHTML = '状态: <span style="color: #f56565;">未启动</span>';
+        if(dySection) dySection.style.display = 'none';
+        
+        // 编队停止：恢复单车控制
+        singleCarInputs.forEach(el => { el.disabled = false; el.style.background = '#fff'; });
+        if (singleCarBtn) { singleCarBtn.disabled = false; singleCarBtn.style.opacity = '1'; singleCarBtn.style.cursor = 'pointer'; }
+        
+        // 恢复遥控器标题
+        if(rcTitle) rcTitle.innerHTML = `🎮 单车实时遥控`;
+        
+        // 【修复核心 2】：只有在之前处于编队状态（wasInFormation 为 true）时，才强制关闭键盘遥控
+        // 这样后台每 3 秒的轮询就不会再无故切断你的单车遥控器了！
+        if (wasInFormation) {
+            const kbCheckbox = document.getElementById('enableKeyboardCtrl');
+            if (kbCheckbox && kbCheckbox.checked) {
+                kbCheckbox.checked = false;
+                kbCheckbox.dispatchEvent(new Event('change'));
             }
         }
+    }
+}
 
         document.getElementById('formationType').addEventListener('change', function() {
             const customSection = document.getElementById('customFormationSection');
