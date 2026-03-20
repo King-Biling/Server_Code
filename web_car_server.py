@@ -659,4 +659,4 @@ if __name__ == '__main__':
         print(f"💡 访问 http://{local_ip}:{WEB_PORT} 打开控制界面")
         app.run(host='0.0.0.0', port=WEB_PORT, debug=False, use_reloader=False, threaded=True)
     else:
-        print("❌ UDP服务器启动失败")
+        print("❌ UDP服务器启动失败，无法运行应用")
