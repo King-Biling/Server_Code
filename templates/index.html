@@ -173,7 +173,7 @@
             flex: 1;
             display: flex;
             flex-direction: column;
-            overflow-y: auto;
+            overflow: hidden;
             padding-right: 5px;
         }
 
@@ -197,24 +197,27 @@
         }
 
         .sidebar-columns {
-            display: flex;
-            gap: 20px;
+            display: grid;
+            grid-template-columns: 1.15fr 1fr;
+            gap: 16px;
             flex: 1;
             min-height: 0;
+            height: 100%;
         }
 
         .sidebar-left {
-            flex: 1;
             display: flex;
             flex-direction: column;
-            min-width: 0;
+            min-height: 0;
         }
 
         .sidebar-right {
-            flex: 1;
             display: flex;
             flex-direction: column;
-            min-width: 0;
+            gap: 16px;
+            min-height: 0;
+            overflow-y: auto;
+            padding-right: 4px;
         }
 
         .header {
@@ -1089,6 +1092,34 @@
             overflow-y: auto;
         }
 
+        .car-list-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .car-list-panel .section-content.expanded {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .car-list-panel .car-list {
+            height: auto;
+            flex: 1;
+        }
+
+        .formation-panel-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+
+        .formation-panel-grid .control-section {
+            margin-bottom: 0;
+        }
+
         /* 队形预览样式 */
         .formation-preview-container {
             margin-top: 10px;
@@ -1123,7 +1154,7 @@
             <div class="sidebar-content">
                 <div class="sidebar-columns">
                     <div class="sidebar-left">
-                        <div class="collapsible-section">
+                        <div class="collapsible-section car-list-panel">
                             <div class="section-header" onclick="toggleSection('carListSection')">
                                 智能小车监控
                             </div>
@@ -1135,80 +1166,80 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+                    <div class="sidebar-right">
                         <div class="collapsible-section">
-                                <div class="section-header" onclick="toggleSection('formationControlSection')">
-                                    编队控制
-                                </div>
-                                <div class="section-content expanded" id="formationControlSection">
-                                    <div class="control-panel compact-control">
-                                        <div class="control-section">
-                                            <h3>编队设置</h3>
-                                            <div style="margin-bottom: 8px;">
-                                                <label>领航者:</label>
-                                                <select id="leaderSelector" class="coord-input">
-                                                    <option value="CAR1">ROBOT#1</option>
-                                                    <option value="CAR2">ROBOT#2</option>
-                                                    <option value="CAR3">ROBOT#3</option>
-                                                    <option value="CAR4">ROBOT#4</option>
-                                                </select>
-                                            </div>
-                                            <div style="margin-bottom: 8px;">
-                                                <label>队形:</label>
-                                                <select id="formationType" class="coord-input">
-                                                    <option value="line">直线编队</option>
-                                                    <option value="Diamond">菱形编队</option>
-                                                    <option value="square">方形编队</option>
-                                                    <option value="custom">自定义</option>
-                                                </select>
-                                            </div>
-                                            <div class="broadcast-controls">
-                                                <button class="broadcast-btn broadcast-on" onclick="startFormation()">启动编队</button>
-                                                <button class="broadcast-btn broadcast-off" onclick="stopFormation()">停止编队</button>
-                                            </div>
-                                            <div class="broadcast-status" id="formationStatus">
-                                                状态: 未启动
-                                            </div>
+                            <div class="section-header" onclick="toggleSection('formationControlSection')">
+                                编队控制
+                            </div>
+                            <div class="section-content expanded" id="formationControlSection">
+                                <div class="control-panel compact-control formation-panel-grid">
+                                    <div class="control-section">
+                                        <h3>编队设置</h3>
+                                        <div style="margin-bottom: 8px;">
+                                            <label>领航者:</label>
+                                            <select id="leaderSelector" class="coord-input">
+                                                <option value="CAR1">ROBOT#1</option>
+                                                <option value="CAR2">ROBOT#2</option>
+                                                <option value="CAR3">ROBOT#3</option>
+                                                <option value="CAR4">ROBOT#4</option>
+                                            </select>
                                         </div>
+                                        <div style="margin-bottom: 8px;">
+                                            <label>队形:</label>
+                                            <select id="formationType" class="coord-input">
+                                                <option value="line">直线编队</option>
+                                                <option value="Diamond">菱形编队</option>
+                                                <option value="square">方形编队</option>
+                                                <option value="custom">自定义</option>
+                                            </select>
+                                        </div>
+                                        <div class="broadcast-controls">
+                                            <button class="broadcast-btn broadcast-on" onclick="startFormation()">启动编队</button>
+                                            <button class="broadcast-btn broadcast-off" onclick="stopFormation()">停止编队</button>
+                                        </div>
+                                        <div class="broadcast-status" id="formationStatus">
+                                            状态: 未启动
+                                        </div>
+                                    </div>
 
-                                        <div class="control-section">
-                                            <h3>预设队形预览</h3>
-                                            <div style="display: flex; gap: 6px; margin-bottom: 8px;">
-                                                <button class="action-btn" onclick="loadFormationPreview('line')" style="font-size: 10px; padding: 4px;">直线</button>
-                                                <button class="action-btn" onclick="loadFormationPreview('Diamond')" style="font-size: 10px; padding: 4px;">菱形</button>
-                                                <button class="action-btn" onclick="loadFormationPreview('square')" style="font-size: 10px; padding: 4px;">方形</button>
-                                            </div>
-                                            
-                                            <div class="formation-preview-container">
-                                                <canvas id="formationPreviewCanvas"></canvas>
-                                                <div class="preview-info" id="formationPreviewInfo">
-                                                    选择队形查看预览...
-                                                </div>
+                                    <div class="control-section">
+                                        <h3>预设队形预览</h3>
+                                        <div style="display: flex; gap: 6px; margin-bottom: 8px;">
+                                            <button class="action-btn" onclick="loadFormationPreview('line')" style="font-size: 10px; padding: 4px;">直线</button>
+                                            <button class="action-btn" onclick="loadFormationPreview('Diamond')" style="font-size: 10px; padding: 4px;">菱形</button>
+                                            <button class="action-btn" onclick="loadFormationPreview('square')" style="font-size: 10px; padding: 4px;">方形</button>
+                                        </div>
+                                        
+                                        <div class="formation-preview-container">
+                                            <canvas id="formationPreviewCanvas"></canvas>
+                                            <div class="preview-info" id="formationPreviewInfo">
+                                                选择队形查看预览...
                                             </div>
                                         </div>
+                                    </div>
 
-                                        <div class="control-section" id="customFormationSection" style="display: none;">
-                                            <h3>自定义编队偏移</h3>
-                                            <div style="font-size: 10px; color: #666; margin-bottom: 6px;">
-                                                格式: {"CAR2": {"x": 0.7, "y": 0, "yaw": 0}...}
-                                            </div>
-                                            <textarea id="customOffsets" class="coord-input" rows="3" placeholder='{"CAR2": {"x": -0.7, "y": 0, "yaw": 0}, "CAR3": {"x": -1.4, "y": 0, "yaw": 0}, "CAR4": {"x": -2.1, "y": 0, "yaw": 0}}' style="width: 100%; font-size: 10px;"></textarea>
-                                            <button class="action-btn" onclick="setCustomFormation()" style="margin-top: 6px;">设置自定义编队</button>
+                                    <div class="control-section" id="customFormationSection" style="display: none;">
+                                        <h3>自定义编队偏移</h3>
+                                        <div style="font-size: 10px; color: #666; margin-bottom: 6px;">
+                                            格式: {"CAR2": {"x": 0.7, "y": 0, "yaw": 0}...}
                                         </div>
+                                        <textarea id="customOffsets" class="coord-input" rows="3" placeholder='{"CAR2": {"x": -0.7, "y": 0, "yaw": 0}, "CAR3": {"x": -1.4, "y": 0, "yaw": 0}, "CAR4": {"x": -2.1, "y": 0, "yaw": 0}}' style="width: 100%; font-size: 10px;"></textarea>
+                                        <button class="action-btn" onclick="setCustomFormation()" style="margin-top: 6px;">设置自定义编队</button>
+                                    </div>
 
-                                        <div class="control-section" id="dynamicAdjustSection" style="display: none;">
-                                            <h3>动态调整</h3>
-                                            <div style="font-size: 10px; color: #666; margin-bottom: 6px;">
-                                                实时调整队形（仅限跟随者）
-                                            </div>
-                                            <div class="position-control" id="followerInputsContainer">
-                                                </div>
-                                            <button class="action-btn" onclick="updateFormationOffsets()" style="margin-top: 6px;">更新偏移量</button>
+                                    <div class="control-section" id="dynamicAdjustSection" style="display: none;">
+                                        <h3>动态调整</h3>
+                                        <div style="font-size: 10px; color: #666; margin-bottom: 6px;">
+                                            实时调整队形（仅限跟随者）
                                         </div>
+                                        <div class="position-control" id="followerInputsContainer">
+                                            </div>
+                                        <button class="action-btn" onclick="updateFormationOffsets()" style="margin-top: 6px;">更新偏移量</button>
                                     </div>
                                 </div>
                             </div>
-                    </div>
-                    <div class="sidebar-right">
+                        </div>
                         <div class="right-controls">
                             <div class="collapsible-section">
                                 <div class="section-header" onclick="toggleSection('carControlSection')">
