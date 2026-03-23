@@ -11,12 +11,53 @@
             box-sizing: border-box;
         }
 
+        :root {
+            color-scheme: dark;
+            --bg-0: #0b1116;
+            --bg-1: #111820;
+            --bg-2: #141d26;
+            --bg-3: #0f171f;
+            --panel-0: rgba(10, 14, 18, 0.92);
+            --panel-1: rgba(12, 18, 24, 0.92);
+            --line-0: rgba(120, 140, 160, 0.35);
+            --line-1: rgba(120, 140, 160, 0.18);
+            --accent-0: #35d4c0;
+            --accent-1: #86f3e0;
+            --text-0: #e6f6ff;
+            --text-1: #b7d6e6;
+            --warn-0: #ffb454;
+        }
+
         body {
-            font-family: 'Microsoft YaHei', Arial, sans-serif;
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            font-family: 'Rajdhani', 'IBM Plex Sans', 'Microsoft YaHei', Arial, sans-serif;
+            background: radial-gradient(1200px 800px at 18% 8%, #1a242e 0%, var(--bg-1) 45%, var(--bg-0) 100%);
             min-height: 100vh;
-            color: #333;
+            color: var(--text-0);
             padding: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                linear-gradient(0deg, rgba(140, 160, 175, 0.03) 1px, transparent 1px) 0 0 / 26px 26px,
+                linear-gradient(90deg, rgba(140, 160, 175, 0.025) 1px, transparent 1px) 0 0 / 26px 26px;
+            opacity: 0.5;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        body::after {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(520px 280px at 70% 16%, rgba(53, 212, 192, 0.12), transparent 70%);
+            opacity: 0.45;
+            pointer-events: none;
+            z-index: 0;
         }
 
         .container {
@@ -25,51 +66,107 @@
             margin: 0 auto;
             gap: 20px;
             height: calc(100vh - 40px);
+            position: relative;
+            z-index: 1;
         }
 
         /* 坐标图区域 */
         .coordinate-map {
             flex: 3;
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            background: var(--panel-0);
+            border-radius: 14px;
+            box-shadow: 0 18px 40px rgba(2, 10, 20, 0.55);
             overflow: hidden;
             position: relative;
             display: flex;
             flex-direction: column;
+            border: 1px solid var(--line-0);
+            backdrop-filter: blur(6px);
+        }
+
+        .coordinate-map::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg, transparent 0%, rgba(53, 212, 192, 0.05) 45%, transparent 75%);
+            transform: translateY(-120%);
+            animation: scan-sweep 16s linear infinite;
+            pointer-events: none;
+            z-index: 1;
         }
 
         .map-header {
             padding: 15px 20px;
-            background: #2c3e50;
-            color: white;
+            background: linear-gradient(120deg, rgba(16, 38, 62, 0.95), rgba(10, 24, 40, 0.95));
+            color: var(--text-0);
             display: flex;
             justify-content: space-between;
             align-items: center;
+            border-bottom: 1px solid var(--line-0);
         }
 
         .map-header h1 {
             font-size: 20px;
+            letter-spacing: 1px;
+            font-weight: 700;
+            text-transform: uppercase;
+            position: relative;
+            padding-left: 12px;
+        }
+
+        .map-header h1::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 5px;
+            height: 70%;
+            background: linear-gradient(180deg, var(--accent-1), var(--accent-0));
+            border-radius: 6px;
+            box-shadow: 0 0 10px rgba(53, 212, 192, 0.45);
+        }
+
+        #coordinateRangeDisplay {
+            color: var(--text-1);
+            font-size: 12px;
         }
 
         #coordinateCanvas {
             flex: 1;
-            background: #f8f9fa;
+            background:
+                radial-gradient(900px 600px at 20% 20%, rgba(20, 60, 70, 0.08), transparent 70%),
+                linear-gradient(0deg, rgba(5, 9, 15, 0.98), rgba(5, 9, 15, 0.98));
             cursor: pointer;
+            border-top: 1px solid rgba(53, 212, 192, 0.08);
         }
 
         /* 侧边栏 - 两列布局 */
         .sidebar {
             flex: 2;
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            background: var(--panel-1);
+            border-radius: 14px;
+            box-shadow: 0 18px 40px rgba(2, 10, 20, 0.45);
             padding: 20px;
             display: flex;
             flex-direction: column;
             min-width: 600px;
             max-width: 800px;
             overflow: hidden;
+            border: 1px solid var(--line-0);
+            backdrop-filter: blur(6px);
+            position: relative;
+        }
+
+        .sidebar::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, transparent 0%, rgba(53, 212, 192, 0.04) 50%, transparent 100%);
+            transform: translateX(-120%);
+            animation: sweep-side 20s linear infinite;
+            pointer-events: none;
+            z-index: 0;
         }
 
         .sidebar-content {
@@ -86,17 +183,17 @@
         }
 
         .sidebar-content::-webkit-scrollbar-track {
-            background: #f1f1f1;
+            background: rgba(10, 24, 38, 0.6);
             border-radius: 3px;
         }
 
         .sidebar-content::-webkit-scrollbar-thumb {
-            background: #c1c1c1;
+            background: rgba(80, 140, 160, 0.55);
             border-radius: 3px;
         }
 
         .sidebar-content::-webkit-scrollbar-thumb:hover {
-            background: #a8a8a8;
+            background: rgba(120, 210, 220, 0.6);
         }
 
         .sidebar-columns {
@@ -124,39 +221,49 @@
             text-align: center;
             margin-bottom: 20px;
             padding-bottom: 15px;
-            border-bottom: 2px solid #eee;
+            border-bottom: 1px solid var(--line-0);
             flex-shrink: 0;
+            position: relative;
+            z-index: 1;
         }
 
         .header h1 {
-            color: #2c3e50;
+            color: var(--text-0);
             font-size: 24px;
             margin-bottom: 5px;
+            letter-spacing: 2px;
+            font-weight: 700;
+            text-transform: uppercase;
+            text-shadow: 0 2px 10px rgba(5, 14, 22, 0.6);
         }
 
         /* 可折叠面板 */
         .collapsible-section {
             margin-bottom: 15px;
-            border-radius: 10px;
+            border-radius: 12px;
             overflow: hidden;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            box-shadow: 0 10px 22px rgba(3, 12, 20, 0.45);
             flex-shrink: 0;
+            border: 1px solid var(--line-1);
         }
 
         .section-header {
-            background: #2c3e50;
-            color: white;
+            background: linear-gradient(120deg, rgba(14, 32, 52, 0.95), rgba(10, 22, 38, 0.95));
+            color: var(--text-0);
             padding: 12px 15px;
             cursor: pointer;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            font-weight: bold;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
             transition: background 0.3s ease;
+            border-bottom: 1px solid var(--line-0);
         }
 
         .section-header:hover {
-            background: #34495e;
+            background: linear-gradient(120deg, rgba(18, 42, 66, 0.98), rgba(12, 28, 46, 0.98));
         }
 
         .section-header::after {
@@ -170,7 +277,7 @@
         }
 
         .section-content {
-            background: white;
+            background: rgba(10, 20, 34, 0.85);
             padding: 0;
             max-height: 0;
             overflow: hidden;
@@ -192,29 +299,31 @@
         }
 
         .car-item {
-            background: white;
+            background: rgba(6, 14, 24, 0.9);
             border-radius: 8px;
             padding: 12px;
             margin-bottom: 10px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-            border-left: 4px solid #4CAF50;
+            box-shadow: 0 10px 18px rgba(3, 10, 18, 0.45);
+            border: 1px solid var(--line-1);
+            border-left: 4px solid #35d4c0;
             transition: all 0.3s ease;
             cursor: pointer;
         }
 
         .car-item:hover {
             transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.12);
+            box-shadow: 0 12px 22px rgba(6, 18, 28, 0.6);
+            border-color: rgba(134, 243, 224, 0.35);
         }
 
         .car-item.disconnected {
-            border-left-color: #f56565;
-            opacity: 0.7;
+            border-left-color: #e07a6a;
+            opacity: 0.6;
         }
 
         .car-item.selected {
-            background: #f0f9ff;
-            border-left-color: #2196F3;
+            background: rgba(10, 36, 42, 0.65);
+            border-left-color: #7fe9d7;
         }
 
         .car-header {
@@ -227,7 +336,7 @@
         .car-id {
             font-weight: bold;
             font-size: 15px;
-            color: #2d3748;
+            color: var(--text-0);
         }
 
         .car-status {
@@ -238,19 +347,22 @@
         }
 
         .status-connected {
-            background: #c6f6d5;
-            color: #22543d;
+            background: rgba(53, 212, 192, 0.2);
+            color: var(--accent-1);
+            border: 1px solid rgba(134, 243, 224, 0.3);
         }
-
         .status-disconnected {
-            background: #fed7d7;
-            color: #742a2a;
+            background: rgba(200, 90, 70, 0.2);
+            color: #ffb4a2;
+            border: 1px solid rgba(224, 122, 106, 0.4);
         }
 
         .car-details {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 6px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
             font-size: 12px;
         }
 
@@ -261,21 +373,30 @@
 
         .detail-label {
             font-size: 10px;
-            color: #718096;
+            color: var(--text-1);
+            text-transform: uppercase;
+            font-weight: 700;
             margin-bottom: 1px;
         }
 
         .detail-value {
             font-weight: 600;
-            color: #2d3748;
+            color: var(--text-0);
         }
 
         /* 控制面板 */
         .control-panel {
-            background: white;
+            background: rgba(6, 14, 24, 0.86);
             border-radius: 8px;
             padding: 12px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+            box-shadow: 0 10px 18px rgba(3, 10, 18, 0.45);
+            border: 1px solid var(--line-1);
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .control-panel:hover {
+            border-color: rgba(134, 243, 224, 0.35);
+            box-shadow: 0 14px 26px rgba(6, 18, 28, 0.55);
         }
 
         .control-section {
@@ -288,10 +409,13 @@
 
         .control-section h3 {
             margin-bottom: 6px;
-            color: #4a5568;
+            color: var(--text-0);
             font-size: 14px;
-            border-bottom: 1px solid #e2e8f0;
+            border-bottom: 1px solid var(--line-1);
             padding-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            font-weight: 700;
         }
 
         /* 位置控制 */
@@ -303,29 +427,95 @@
 
         .coord-input {
             padding: 5px;
-            border: 1px solid #cbd5e0;
-            border-radius: 5px;
+            border: 1px solid var(--line-0);
+            border-radius: 6px;
             font-size: 12px;
             width: 100%;
             transition: all 0.3s;
+            background: rgba(6, 14, 24, 0.92);
+            color: var(--text-0);
+            outline: none;
+        }
+
+        .coord-input::placeholder {
+            color: rgba(183, 214, 230, 0.6);
+        }
+
+        .coord-input:focus {
+            border-color: var(--accent-0);
+            box-shadow: 0 0 0 2px rgba(53, 212, 192, 0.18);
+            background: rgba(6, 14, 24, 0.98);
+            color: var(--text-0);
+        }
+
+        input.coord-input,
+        select.coord-input,
+        textarea.coord-input {
+            background: rgba(6, 14, 24, 0.95) !important;
+            color: var(--text-0) !important;
+            -webkit-text-fill-color: var(--text-0);
+        }
+
+        input.coord-input:focus,
+        select.coord-input:focus,
+        textarea.coord-input:focus {
+            background: rgba(6, 14, 24, 0.98) !important;
+            color: var(--text-0) !important;
+            -webkit-text-fill-color: var(--text-0);
+        }
+
+        input.coord-input:-webkit-autofill,
+        input.coord-input:-webkit-autofill:hover,
+        input.coord-input:-webkit-autofill:focus,
+        textarea.coord-input:-webkit-autofill,
+        textarea.coord-input:-webkit-autofill:hover,
+        textarea.coord-input:-webkit-autofill:focus,
+        select.coord-input:-webkit-autofill,
+        select.coord-input:-webkit-autofill:hover,
+        select.coord-input:-webkit-autofill:focus {
+            -webkit-box-shadow: 0 0 0 1000px #0a1624 inset !important;
+            -webkit-text-fill-color: var(--text-0) !important;
+            caret-color: var(--text-0);
+        }
+
+        select.coord-input {
+            background-color: rgba(6, 14, 24, 0.95);
+            color: var(--text-0);
+        }
+
+        select.coord-input option {
+            background-color: #0a1624;
+            color: var(--text-0);
+        }
+
+        input.coord-input,
+        textarea.coord-input {
+            color: var(--text-0);
         }
 
         .action-btn {
             width: 100%;
             padding: 7px;
-            background: #3498db;
-            color: white;
+            background: linear-gradient(120deg, rgba(25, 115, 130, 0.95), rgba(20, 90, 120, 0.95));
+            color: var(--text-0);
             border: none;
-            border-radius: 5px;
+            border-radius: 6px;
             font-weight: bold;
             cursor: pointer;
             margin-top: 6px;
             transition: all 0.3s ease;
             font-size: 12px;
+            box-shadow: 0 8px 18px rgba(5, 14, 22, 0.45);
+            border: 1px solid rgba(134, 243, 224, 0.2);
         }
 
         .action-btn:hover:not(:disabled) {
-            background: #2980b9;
+            background: linear-gradient(120deg, rgba(35, 150, 160, 0.98), rgba(25, 110, 150, 0.98));
+            transform: translateY(-1px);
+        }
+
+        .action-btn:active:not(:disabled) {
+            transform: translateY(0);
         }
 
         /* 广播控制按钮 */
@@ -339,21 +529,22 @@
             flex: 1;
             padding: 7px;
             border: none;
-            border-radius: 5px;
+            border-radius: 6px;
             font-weight: bold;
             cursor: pointer;
             transition: all 0.2s ease;
             font-size: 12px;
+            border: 1px solid rgba(134, 243, 224, 0.16);
         }
 
         .broadcast-on {
-            background: #48bb78;
-            color: white;
+            background: linear-gradient(120deg, rgba(33, 155, 120, 0.95), rgba(24, 120, 110, 0.95));
+            color: var(--text-0);
         }
 
         .broadcast-off {
-            background: #f56565;
-            color: white;
+            background: linear-gradient(120deg, rgba(180, 80, 70, 0.95), rgba(140, 55, 70, 0.95));
+            color: var(--text-0);
         }
 
         .broadcast-btn:hover {
@@ -365,13 +556,13 @@
         }
 
         .broadcast-btn.inactive {
-            background: #cbd5e0;
-            color: #718096;
+            background: rgba(80, 110, 125, 0.4);
+            color: rgba(183, 214, 230, 0.7);
         }
 
         .broadcast-status {
             font-size: 11px;
-            color: #718096;
+            color: var(--text-1);
             margin-top: 4px;
             text-align: center;
         }
@@ -381,21 +572,23 @@
             position: absolute;
             bottom: 15px;
             right: 15px;
-            background: rgba(255,255,255,0.9);
+            background: rgba(8, 18, 30, 0.75);
             padding: 6px 12px;
             border-radius: 6px;
             font-size: 11px;
             z-index: 1000;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            box-shadow: 0 10px 20px rgba(3, 10, 18, 0.4);
+            border: 1px solid var(--line-1);
+            backdrop-filter: blur(6px);
         }
 
         /* ===== 精美遥控卡片样式 ===== */
         .rc-panel {
-            background: linear-gradient(to bottom right, #ffffff, #f1f5f9);
-            border: 1px solid #e2e8f0;
+            background: linear-gradient(140deg, rgba(10, 24, 38, 0.95), rgba(8, 18, 30, 0.85));
+            border: 1px solid var(--line-1);
             border-radius: 8px;
             padding: 12px;
-            box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+            box-shadow: inset 0 2px 6px rgba(2, 10, 18, 0.4);
         }
         
         /* 苹果风格的开关 Switch */
@@ -417,9 +610,10 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background-color: #cbd5e0;
+            background-color: rgba(90, 130, 150, 0.5);
             transition: .3s;
             border-radius: 20px;
+            border: 1px solid rgba(134, 243, 224, 0.2);
         }
         .slider:before {
             position: absolute;
@@ -428,13 +622,13 @@
             width: 16px;
             left: 2px;
             bottom: 2px;
-            background-color: white;
+            background-color: var(--text-0);
             transition: .3s;
             border-radius: 50%;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+            box-shadow: 0 1px 4px rgba(5, 12, 20, 0.5);
         }
         input:checked + .slider {
-            background-color: #48bb78;
+            background-color: rgba(53, 212, 192, 0.9);
         }
         input:checked + .slider:before {
             transform: translateX(16px);
@@ -454,16 +648,16 @@
             height: 14px;
             width: 14px;
             border-radius: 50%;
-            background: #3498db;
+            background: var(--accent-0);
             cursor: pointer;
             margin-top: -5px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            box-shadow: 0 1px 6px rgba(5, 12, 20, 0.45);
         }
         input[type=range]::-webkit-slider-runnable-track {
             width: 100%;
             height: 4px;
             cursor: pointer;
-            background: #cbd5e0;
+            background: rgba(80, 120, 140, 0.55);
             border-radius: 2px;
         }
 
@@ -480,46 +674,46 @@
         .kb-key {
             width: 42px;
             height: 42px;
-            background: #fff;
-            border: 2px solid #cbd5e0;
+            background: var(--bg-3);
+            border: 1px solid var(--line-0);
             border-radius: 8px;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             font-weight: 800;
-            color: #4a5568;
+            color: var(--text-0);
             font-size: 14px;
-            box-shadow: 0 4px 0 #cbd5e0;
+            box-shadow: 0 4px 0 rgba(6, 14, 24, 0.9);
             transition: all 0.1s;
             user-select: none;
         }
         .kb-key span {
             font-size: 9px;
             font-weight: normal;
-            color: #718096;
+            color: var(--text-1);
             margin-top: 1px;
         }
         .kb-key.active {
-            background: #3498db;
-            color: #fff;
-            border-color: #2980b9;
-            box-shadow: 0 0 0 #2980b9;
+            background: rgba(53, 212, 192, 0.85);
+            color: #062127;
+            border-color: rgba(134, 243, 224, 0.7);
+            box-shadow: 0 0 0 rgba(134, 243, 224, 0.4);
             transform: translateY(4px);
         }
         .kb-key.active span {
-            color: #e0f2fe;
+            color: #0a3a3f;
         }
         .kb-key.turn {
-            background: #fdf2e9;
-            color: #d35400;
-            border-color: #f39c12;
-            box-shadow: 0 4px 0 #f39c12;
+            background: rgba(60, 38, 20, 0.7);
+            color: #ffbf7a;
+            border-color: rgba(255, 180, 84, 0.6);
+            box-shadow: 0 4px 0 rgba(60, 38, 20, 0.9);
         }
         .kb-key.turn.active {
-            background: #e67e22;
-            color: #fff;
-            box-shadow: 0 0 0 #d68910;
+            background: rgba(255, 180, 84, 0.9);
+            color: #2b1a06;
+            box-shadow: 0 0 0 rgba(255, 180, 84, 0.5);
         }
         
         /* 手柄摇杆可视化 */
@@ -528,20 +722,20 @@
         }
         
         .gamepad-body {
-            background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 45%, #e2e8f0 100%);
-            border: 1px solid #d7e0ea;
+            background: linear-gradient(135deg, rgba(10, 22, 34, 0.95) 0%, rgba(8, 18, 28, 0.95) 55%, rgba(6, 14, 22, 0.9) 100%);
+            border: 1px solid var(--line-1);
             border-radius: 12px;
             padding: 12px;
             position: relative;
             overflow: hidden;
-            box-shadow: 0 8px 18px rgba(15,23,42,0.10), inset 0 1px 2px rgba(255,255,255,0.8);
+            box-shadow: 0 10px 22px rgba(6, 16, 26, 0.55), inset 0 1px 2px rgba(6, 14, 22, 0.6);
         }
 
         .gamepad-body::before {
             content: '';
             position: absolute;
             inset: 0;
-            background: radial-gradient(circle at 20% 10%, rgba(255,255,255,0.65), rgba(255,255,255,0) 60%);
+            background: radial-gradient(circle at 20% 10%, rgba(134, 243, 224, 0.2), rgba(255,255,255,0) 60%);
             pointer-events: none;
         }
 
@@ -557,10 +751,10 @@
             gap: 12px;
             margin-bottom: 8px;
             font-size: 10px;
-            color: #4a5568;
+            color: var(--text-1);
             font-weight: bold;
-            background: rgba(226,232,240,0.6);
-            border: 1px solid rgba(203,213,224,0.6);
+            background: rgba(12, 26, 40, 0.7);
+            border: 1px solid rgba(120, 210, 220, 0.2);
             border-radius: 8px;
             padding: 4px 6px;
         }
@@ -581,10 +775,10 @@
             height: 64px;
             margin: 0 auto 6px;
             border-radius: 50%;
-            background: radial-gradient(circle at 35% 35%, #f8fafc 0%, #e8eef6 45%, #dfe7f1 100%);
-            border: 2px solid #cbd5e0;
+            background: radial-gradient(circle at 35% 35%, rgba(18, 40, 55, 0.95) 0%, rgba(12, 26, 40, 0.95) 45%, rgba(8, 18, 28, 0.95) 100%);
+            border: 2px solid rgba(120, 210, 220, 0.25);
             position: relative;
-            box-shadow: inset 0 2px 6px rgba(15,23,42,0.12), 0 4px 10px rgba(15,23,42,0.12);
+            box-shadow: inset 0 2px 6px rgba(6, 16, 26, 0.5), 0 4px 10px rgba(6, 16, 26, 0.35);
         }
 
         .stick::before,
@@ -593,7 +787,7 @@
             position: absolute;
             left: 50%;
             top: 50%;
-            background: rgba(148,163,184,0.7);
+            background: rgba(120, 210, 220, 0.4);
             transform: translate(-50%, -50%);
         }
 
@@ -610,20 +804,20 @@
         .stick-dot {
             width: 16px;
             height: 16px;
-            background: radial-gradient(circle at 30% 30%, #7fc8ff, #3498db 70%);
+            background: radial-gradient(circle at 30% 30%, #7fe9d7, #35d4c0 70%);
             border-radius: 50%;
             position: absolute;
             left: 50%;
             top: 50%;
             transform: translate(-50%, -50%);
             transition: transform 0.08s ease-out;
-            box-shadow: 0 2px 4px rgba(15,23,42,0.25);
-            border: 1px solid rgba(255,255,255,0.7);
+            box-shadow: 0 2px 4px rgba(6, 16, 26, 0.5);
+            border: 1px solid rgba(134, 243, 224, 0.7);
         }
         
         .stick-label {
             font-size: 10px;
-            color: #718096;
+            color: var(--text-1);
         }
         
         .trigger-bars {
@@ -635,26 +829,26 @@
         .trigger-bar {
             flex: 1;
             height: 8px;
-            background: #e5edf5;
+            background: rgba(12, 26, 40, 0.7);
             border-radius: 5px;
             overflow: hidden;
             position: relative;
-            box-shadow: inset 0 1px 2px rgba(15,23,42,0.15);
+            box-shadow: inset 0 1px 2px rgba(6, 16, 26, 0.5);
         }
         
         .trigger-fill {
             height: 100%;
             width: 0%;
-            background: linear-gradient(90deg, #f6b26b, #e67e22);
+            background: linear-gradient(90deg, rgba(255, 180, 84, 0.8), rgba(230, 126, 34, 0.9));
             transition: width 0.08s ease-out;
         }
 
         /* 速度仪表盘 */
         .speed-dashboard {
-            background: #fff;
+            background: rgba(8, 18, 30, 0.75);
             padding: 10px;
             border-radius: 6px;
-            border: 1px solid #e2e8f0;
+            border: 1px solid var(--line-1);
         }
         .speed-bar-container {
             display: flex;
@@ -667,18 +861,18 @@
         }
         .speed-label {
             width: 45px;
-            color: #4a5568;
+            color: var(--text-1);
             font-weight: bold;
         }
         .speed-track {
             flex: 1;
             height: 10px;
-            background: #edf2f7;
+            background: rgba(80, 120, 140, 0.35);
             border-radius: 5px;
             position: relative;
             margin: 0 8px;
             overflow: hidden;
-            box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
+            box-shadow: inset 0 1px 2px rgba(2, 10, 18, 0.5);
         }
         .speed-track::after {
             content: '';
@@ -687,44 +881,45 @@
             top: 0;
             bottom: 0;
             width: 2px;
-            background: #a0aec0;
+            background: rgba(183, 214, 230, 0.4);
             z-index: 2;
         }
         .speed-fill {
             position: absolute;
             top: 0;
             height: 100%;
-            background: #3498db;
+            background: var(--accent-0);
             transition: width 0.1s ease-out, left 0.1s ease-out, right 0.1s ease-out;
             z-index: 1;
         }
         .speed-fill.turn {
-            background: #e67e22;
+            background: var(--warn-0);
         }
         .speed-val {
             width: 35px;
             text-align: right;
             font-family: monospace;
             font-weight: bold;
-            color: #2c3e50;
+            color: var(--text-0);
         }
 
         /* 小车详情弹窗 */
         .car-popup {
             position: absolute;
-            background: white;
+            background: rgba(8, 18, 30, 0.9);
             border-radius: 8px;
             padding: 10px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            box-shadow: 0 12px 24px rgba(3, 10, 18, 0.5);
             z-index: 1000;
             max-width: 220px;
             display: none;
+            border: 1px solid var(--line-1);
         }
 
         .car-popup h3 {
             margin-bottom: 6px;
-            color: #2c3e50;
-            border-bottom: 1px solid #eee;
+            color: var(--text-0);
+            border-bottom: 1px solid var(--line-1);
             padding-bottom: 4px;
             font-size: 14px;
         }
@@ -744,7 +939,7 @@
             border: none;
             font-size: 12px;
             cursor: pointer;
-            color: #718096;
+            color: var(--text-1);
         }
 
         /* 角度指示器 */
@@ -752,18 +947,45 @@
             position: absolute;
             bottom: 15px;
             left: 15px;
-            background: rgba(255,255,255,0.9);
+            background: rgba(8, 18, 30, 0.75);
             padding: 6px 12px;
             border-radius: 6px;
             font-size: 11px;
             z-index: 1000;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            box-shadow: 0 10px 20px rgba(3, 10, 18, 0.4);
+            border: 1px solid var(--line-1);
+            backdrop-filter: blur(6px);
+        }
+
+        @keyframes scan-sweep {
+            0% {
+                transform: translateY(-120%);
+            }
+            100% {
+                transform: translateY(120%);
+            }
+        }
+
+        @keyframes sweep-side {
+            0% {
+                transform: translateX(-120%);
+            }
+            100% {
+                transform: translateX(120%);
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .coordinate-map::before,
+            .sidebar::before {
+                animation: none;
+            }
         }
 
         /* 速度显示样式 */
         .speed-info {
             font-size: 9px;
-            color: #4a5568;
+            color: var(--text-1);
             line-height: 1.2;
         }
 
@@ -787,40 +1009,56 @@
             text-align: center;
             font-weight: bold;
             padding: 3px;
-            background: #f7fafc;
-            font-size: 10px;
+            background: rgba(10, 24, 38, 0.8);
+        }
+            background: rgba(12, 26, 40, 0.6) !important;
+            color: var(--text-1);
+            border-color: var(--line-1);
         }
 
-        .matrix-cell {
-            text-align: center;
+        .no-cars {
+            color: var(--text-1) !important;
         }
 
-        .matrix-cell input {
-            width: 100%;
-            text-align: center;
-            font-size: 10px;
-            padding: 2px;
+        #gamepadStatus {
+            color: var(--text-1) !important;
+        }
+
+        #rcBody {
+            color: var(--text-1);
+        }
+
+        #rcBody > div {
+            background: rgba(6, 14, 24, 0.9) !important;
+            border-color: var(--line-1) !important;
+        }
+
+        #rcBody span,
+        #rcBody div {
+            color: var(--text-1);
         }
 
         .visibility-info {
             margin-top: 6px;
             padding: 6px;
-            background: #f8f9fa;
+            background: rgba(10, 24, 38, 0.7);
             border-radius: 4px;
             font-size: 9px;
             line-height: 1.2;
+            color: var(--text-1);
         }
 
         /* 系统状态栏 */
         .system-status {
             margin-top: 15px;
             padding: 8px;
-            background: #f8f9fa;
+            background: rgba(10, 24, 38, 0.75);
             border-radius: 6px;
             font-size: 10px;
             text-align: center;
-            color: #4a5568;
+            color: var(--text-1);
             flex-shrink: 0;
+            border: 1px solid var(--line-1);
         }
 
         /* 紧凑布局调整 */
@@ -859,9 +1097,9 @@
         }
         
         #formationPreviewCanvas {
-            border: 1px solid #ddd;
+            border: 1px solid var(--line-1);
             border-radius: 5px;
-            background: #f8f9fa;
+            background: rgba(8, 18, 30, 0.7);
             margin: 5px auto;
             display: block;
             width: 100%;
@@ -870,7 +1108,7 @@
         
         .preview-info {
             font-size: 10px;
-            color: #666;
+            color: var(--text-1);
             margin-top: 3px;
         }
     </style>
@@ -1243,8 +1481,8 @@
             canvasHeight: 150,
             previewRange: 2, 
             carSize: 5,      
-            leaderColor: '#e74c3c', 
-            followerColor: '#3498db' 
+            leaderColor: '#ffb454', 
+            followerColor: '#35d4c0' 
         };
 
         // 队形配置数据
@@ -1275,6 +1513,7 @@
         let lastUpdateTime = 0;
         let updateCount = 0;
         let canvas, ctx;
+        let gridImageData = null;
         let carPopup = document.getElementById('carPopup');
         let popupCarId = document.getElementById('popupCarId');
         let popupDetails = document.getElementById('popupDetails');
@@ -1305,10 +1544,10 @@
             
             ctx.clearRect(0, 0, width, height);
             
-            ctx.fillStyle = '#f8f9fa';
+            ctx.fillStyle = '#050b12';
             ctx.fillRect(0, 0, width, height);
             
-            ctx.strokeStyle = '#ddd';
+            ctx.strokeStyle = 'rgba(120, 210, 220, 0.2)';
             ctx.lineWidth = 1;
             
             ctx.beginPath();
@@ -1337,14 +1576,14 @@
                 ctx.arc(x, y, FORMATION_PREVIEW_CONFIG.carSize, 0, Math.PI * 2);
                 ctx.fill();
                 
-                ctx.fillStyle = carId === leaderId ? '#fff' : '#2c3e50';
+                ctx.fillStyle = carId === leaderId ? '#0b1624' : '#b7d6e6';
                 ctx.font = 'bold 7px Arial';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillText(carId.replace('CAR', 'R'), x, y);
                 
                 if (carId === leaderId) {
-                    ctx.strokeStyle = '#fff';
+                    ctx.strokeStyle = '#b7d6e6';
                     ctx.lineWidth = 1;
                     ctx.beginPath();
                     ctx.arc(x, y, FORMATION_PREVIEW_CONFIG.carSize + 1, 0, Math.PI * 2);
@@ -1412,6 +1651,7 @@
             function resizeCanvas() {
                 canvas.width = canvas.offsetWidth;
                 canvas.height = canvas.offsetHeight;
+                gridImageData = null;
                 drawCoordinateSystem();
             }
 
@@ -1420,12 +1660,19 @@
         }
 
         function drawCoordinateSystem() {
+            const displayWidth = canvas.offsetWidth;
+            const displayHeight = canvas.offsetHeight;
+            if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
+                canvas.width = Math.max(1, displayWidth);
+                canvas.height = Math.max(1, displayHeight);
+            }
+
             const width = canvas.width;
             const height = canvas.height;
 
             ctx.clearRect(0, 0, width, height);
 
-            ctx.fillStyle = '#f8f9fa';
+            ctx.fillStyle = '#050b12';
             ctx.fillRect(0, 0, width, height);
 
             const rangeX = COORDINATE_RANGE.maxX - COORDINATE_RANGE.minX;
@@ -1438,7 +1685,7 @@
             const offsetX = (width - rangeX * scale) / 2;
             const offsetY = (height - rangeY * scale) / 2;
 
-            ctx.strokeStyle = '#e9ecef';
+            ctx.strokeStyle = 'rgba(80, 140, 160, 0.18)';
             ctx.lineWidth = 1;
 
             const gridSize = 1; 
@@ -1458,7 +1705,7 @@
                 ctx.stroke();
             }
 
-            ctx.strokeStyle = '#495057';
+            ctx.strokeStyle = 'rgba(120, 210, 220, 0.55)';
             ctx.lineWidth = 2;
 
             const zeroY = coordinateToPixelY(0);
@@ -1473,7 +1720,7 @@
             ctx.lineTo(zeroX, height - offsetY);
             ctx.stroke();
 
-            ctx.fillStyle = '#495057';
+            ctx.fillStyle = '#9fc7d6';
             ctx.font = '11px Arial';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
@@ -1500,12 +1747,12 @@
                 ctx.fillText(y.toString(), zeroX - 10, pixelY);
             }
 
-            ctx.fillStyle = '#e74c3c';
+            ctx.fillStyle = '#35d4c0';
             ctx.beginPath();
             ctx.arc(zeroX, zeroY, 4, 0, Math.PI * 2);
             ctx.fill();
 
-            ctx.fillStyle = '#2c3e50';
+            ctx.fillStyle = '#b7d6e6';
             ctx.font = '13px Arial';
             ctx.textAlign = 'right';
             ctx.textBaseline = 'top';
@@ -1516,6 +1763,17 @@
             ctx.fillText('X', width - offsetX, zeroY - 10);
 
             drawAngleIndicators();
+
+            gridImageData = ctx.getImageData(0, 0, width, height);
+        }
+
+        function renderFrame() {
+            if (gridImageData) {
+                ctx.putImageData(gridImageData, 0, 0);
+            } else {
+                drawCoordinateSystem();
+            }
+            drawCars();
         }
 
         function drawAngleIndicators() {
@@ -1535,7 +1793,7 @@
             const centerY = coordinateToPixelY(0);
             const radius = Math.min(width - offsetX * 2, height - offsetY * 2) * 0.35;
 
-            ctx.strokeStyle = '#bdc3c7';
+            ctx.strokeStyle = 'rgba(120, 210, 220, 0.35)';
             ctx.lineWidth = 1;
             ctx.setLineDash([5, 3]);
 
@@ -1545,7 +1803,7 @@
 
             ctx.setLineDash([]);
 
-            ctx.fillStyle = '#7f8c8d';
+            ctx.fillStyle = '#9fc7d6';
             ctx.font = '11px Arial';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -1566,7 +1824,7 @@
                 ctx.fillText(angle + '°', textX, textY);
             }
 
-            ctx.fillStyle = '#e74c3c';
+            ctx.fillStyle = '#ffb454';
             const zeroTextX = centerX + (radius + 25) * Math.cos(0);
             const zeroTextY = centerY - (radius + 25) * Math.sin(0);
             ctx.fillText('0°', zeroTextX, zeroTextY);
@@ -1607,7 +1865,7 @@
             ctx.translate(x, y);
             ctx.rotate(-heading * Math.PI / 180);
 
-            ctx.fillStyle = selectedCarId === carId ? '#e74c3c' : '#3498db';
+            ctx.fillStyle = selectedCarId === carId ? '#ffb454' : '#35d4c0';
             ctx.beginPath();
             ctx.moveTo(pointerLength / 2, 0); 
             ctx.lineTo(-pointerLength / 2, -pointerSize / 2); 
@@ -1615,14 +1873,14 @@
             ctx.closePath();
             ctx.fill();
 
-            ctx.fillStyle = selectedCarId === carId ? '#c0392b' : '#2980b9';
+            ctx.fillStyle = selectedCarId === carId ? '#c17a35' : '#1c8f8a';
             ctx.beginPath();
             ctx.arc(0, 0, 6, 0, Math.PI * 2);
             ctx.fill();
             ctx.restore();
 
             const displayId = carId.replace('CAR', 'R#');
-            ctx.fillStyle = selectedCarId === carId ? '#e74c3c' : '#2c3e50';
+            ctx.fillStyle = selectedCarId === carId ? '#ffb454' : '#b7d6e6';
             ctx.font = 'bold 13px Arial';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'bottom';
@@ -1633,7 +1891,7 @@
                 const vx = velocity.vx * speedScale;
                 const vy = -velocity.vy * speedScale; 
 
-                ctx.strokeStyle = '#e74c3c';
+                ctx.strokeStyle = selectedCarId === carId ? '#ffb454' : '#35d4c0';
                 ctx.lineWidth = 1.5;
                 ctx.beginPath();
                 ctx.moveTo(x, y);
@@ -1687,8 +1945,7 @@
                 cars = Array.isArray(carsData) ? carsData.map(parseCompactCarData) : [];
 
                 updateCarList();
-                drawCoordinateSystem();
-                drawCars();
+                renderFrame();
                 updateCarSelector();
                 updatePerformanceInfo(cars.length, endTime - startTime);
 
@@ -1711,11 +1968,13 @@
 
             if (isError) {
                 performanceInfo.innerHTML = `❌ 连接错误 | 小车: ${carCount}`;
-                performanceInfo.style.background = '#fed7d7';
+                performanceInfo.style.background = 'rgba(80, 30, 30, 0.75)';
+                performanceInfo.style.color = '#ffd1c6';
             } else {
                 performanceInfo.innerHTML =
                     `更新频率: 300ms | 小车: ${carCount} | 响应: ${fetchTime.toFixed(1)}ms`;
-                performanceInfo.style.background = '#c6f6d5';
+                performanceInfo.style.background = 'rgba(8, 18, 30, 0.75)';
+                performanceInfo.style.color = '#b7d6e6';
             }
         }
 
@@ -1723,7 +1982,7 @@
             const carList = document.getElementById('carList');
 
             if (cars.length === 0) {
-                carList.innerHTML = '<div class="no-cars" style="text-align: center; color: #718096; padding: 15px;">等待小车连接...</div>';
+                carList.innerHTML = '<div class="no-cars" style="text-align: center; padding: 15px;">等待小车连接...</div>';
                 return;
             }
 
@@ -1788,8 +2047,7 @@
                 item.classList.toggle('selected', item.querySelector('.car-id').textContent.includes(carId.replace('CAR', 'ROBOT#')));
             });
 
-            drawCoordinateSystem();
-            drawCars();
+            renderFrame();
         }
 
         async function toggleBroadcast(enable) {

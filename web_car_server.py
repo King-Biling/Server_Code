@@ -263,9 +263,6 @@ class UDPServer:
             try:
                 current_time = time.time()
                 if broadcast_enabled and (current_time - last_broadcast >= broadcast_interval):
-                    with car_lock:
-                        connected_count = sum(1 for car in cars.values() if car.connected)
-                    
                     success = self._broadcast_all_cars_data()
                     last_broadcast = current_time
                     debug_counter += 1
@@ -357,10 +354,9 @@ class UDPServer:
                 disconnected_cars = []
                 with car_lock:
                     for car_id, car in cars.items():
-                        if current_time - car.last_update > 5.0:
-                            if car.connected:
-                                disconnected_cars.append(car_id)
-                                car.connected = False
+                        if current_time - car.last_update > 5.0 and car.connected:
+                            disconnected_cars.append(car_id)
+                            car.connected = False
                 for car_id in disconnected_cars:
                     print(f"⚠️ 小车 {car_id} 超时未更新，标记为断开")
                 time.sleep(2.0)
@@ -583,7 +579,7 @@ def set_topology():
                 'topology_string': topology_str
             })
         else:
-            return jsonify({'success': False, 'error': '无效的拓扑矩阵格式'})
+                return jsonify({'success': False, 'error': '无效的拓扑矩阵格式'})
     else:
         return jsonify({'success': False, 'error': '缺少拓扑矩阵'})
 
@@ -642,7 +638,7 @@ def get_network_info():
                 for addr_info in addrs[netifaces.AF_INET]:
                     print(f"  {interface}: {addr_info['addr']} - 广播地址: {addr_info.get('broadcast', 'N/A')}")
     except ImportError:
-        print("⚠️ 无法获取详细网络信息，请安装 netifaces 库")
+        print("⚠️ 无法获取详细网络信息，请安装 netifaces")
 
 if __name__ == '__main__':
     get_network_info()
@@ -652,7 +648,7 @@ if __name__ == '__main__':
         print("✅ UDP服务器启动成功")
         init_formation_controller(cars, udp_server)
         print(f"📡 广播频率: {1 / broadcast_interval:.0f}Hz ({broadcast_interval * 1000:.0f}ms间隔)")
-        print(f"📡 广播分组大小: 每组最多 {broadcast_group_size} 辆小车")
+        print(f"📡 广播分组大小: 每组最大 {broadcast_group_size} 辆小车")
         print(f"📢 使用子网广播地址，端口: {BROADCAST_PORT}")
         local_ip = get_local_ip()
         print(f"🌐 服务器本地IP地址: {local_ip}")
