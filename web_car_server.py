@@ -3,6 +3,9 @@ import threading
 import time
 import json
 import random 
+import os
+import csv
+from datetime import datetime
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 # 增加导入 get_formation_info
@@ -14,6 +17,10 @@ app.register_blueprint(formation_bp)
 
 cars = {}
 car_lock = threading.Lock()
+
+save_lock = threading.Lock()
+active_pose_saves = {}
+POSE_SAVE_DIRNAME = "pose_data"
 
 UDP_HOST = '0.0.0.0'
 UDP_PORT = 8080
@@ -82,6 +89,24 @@ class Car:
         self.update_count = 0
         self.last_broadcast_time = 0
         self.connection_attempts = 0
+
+class PoseSaveSession:
+    def __init__(self, car_id, duration_sec, filename):
+        self.car_id = car_id
+        self.duration_sec = duration_sec
+        self.filename = filename
+        self.save_path = ""
+        self.start_time = time.time()
+        self.end_time = self.start_time + duration_sec
+        self.records = []
+
+    def add_record(self, timestamp, x, y, yaw):
+        self.records.append({
+            "timestamp": timestamp,
+            "x": x,
+            "y": y,
+            "yaw": yaw
+        })
 
 class BroadcastServer:
     def __init__(self, port=8081):
@@ -237,6 +262,8 @@ class UDPServer:
                         car.last_update = current_time
                         print(f"🚗 新小车连接: {car_id} from {addr}")
                         reconnect_event = True
+
+                    record_pose_sample(car_id, current_time, x, y, yaw)
 
                 if reconnect_event:
                     self._send_reconnect_ack(car_id)
@@ -422,6 +449,55 @@ class UDPServer:
 
 udp_server = UDPServer(UDP_HOST, UDP_PORT)
 
+def record_pose_sample(car_id, timestamp, x, y, yaw):
+    with save_lock:
+        session = active_pose_saves.get(car_id)
+        if not session:
+            return
+        if timestamp > session.end_time:
+            return
+        session.add_record(timestamp, x, y, yaw)
+
+def finalize_pose_save(car_id):
+    with save_lock:
+        session = active_pose_saves.pop(car_id, None)
+    if not session:
+        return
+
+    try:
+        save_path = session.save_path or os.path.join(os.path.dirname(__file__), session.filename)
+        with open(save_path, "w", newline="", encoding="utf-8") as csv_file:
+            writer = csv.writer(csv_file)
+            writer.writerow(["timestamp", "elapsed_s", "x", "y", "yaw"])
+            for item in session.records:
+                ts = datetime.fromtimestamp(item["timestamp"]).isoformat(timespec="milliseconds")
+                elapsed = item["timestamp"] - session.start_time
+                writer.writerow([ts, round(elapsed, 3), item["x"], item["y"], item["yaw"]])
+        print(f"✅ 位姿数据保存完成: {save_path} (共 {len(session.records)} 条)")
+    except Exception as e:
+        print(f"❌ 位姿数据保存失败: {e}")
+
+def start_pose_save(car_id, duration_sec):
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{car_id}_{timestamp}.csv"
+    save_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), POSE_SAVE_DIRNAME))
+    os.makedirs(save_dir, exist_ok=True)
+    save_path = os.path.join(save_dir, filename)
+
+    with save_lock:
+        if car_id in active_pose_saves:
+            return False, "该小车正在保存中"
+        session = PoseSaveSession(car_id, duration_sec, filename)
+        session.save_path = save_path
+        active_pose_saves[car_id] = session
+
+    def _finalize_after_delay():
+        time.sleep(duration_sec)
+        finalize_pose_save(car_id)
+
+    threading.Thread(target=_finalize_after_delay, daemon=True).start()
+    return True, {"filename": filename, "save_path": save_path}
+
 def update_topology_cache():
     global topology_cache
     topology_cache = {}
@@ -579,7 +655,7 @@ def set_topology():
                 'topology_string': topology_str
             })
         else:
-                return jsonify({'success': False, 'error': '无效的拓扑矩阵格式'})
+            return jsonify({'success': False, 'error': '无效的拓扑矩阵格式'})
     else:
         return jsonify({'success': False, 'error': '缺少拓扑矩阵'})
 
@@ -617,6 +693,33 @@ def get_visible_cars(car_id):
         'topology_enabled': topology_enabled
     })
 
+@app.route('/api/save_pose', methods=['POST'])
+def save_pose():
+    data = request.json
+    car_id = data.get('car_id')
+    duration = int(data.get('duration', 10))
+
+    if not car_id:
+        return jsonify({'success': False, 'error': '缺少car_id'})
+    if duration not in (10, 20, 30):
+        return jsonify({'success': False, 'error': '仅支持 10/20/30 秒'})
+
+    with car_lock:
+        if car_id not in cars or not cars[car_id].connected:
+            return jsonify({'success': False, 'error': f'小车 {car_id} 未连接'})
+
+    success, result = start_pose_save(car_id, duration)
+    if not success:
+        return jsonify({'success': False, 'error': result})
+
+    return jsonify({
+        'success': True,
+        'message': f'已开始保存 {car_id} 位姿数据，持续 {duration}s',
+        'filename': result["filename"],
+        'save_path': result["save_path"],
+        'duration': duration
+    })
+
 def get_local_ip():
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -648,7 +751,7 @@ if __name__ == '__main__':
         print("✅ UDP服务器启动成功")
         init_formation_controller(cars, udp_server)
         print(f"📡 广播频率: {1 / broadcast_interval:.0f}Hz ({broadcast_interval * 1000:.0f}ms间隔)")
-        print(f"📡 广播分组大小: 每组最大 {broadcast_group_size} 辆小车")
+        print(f"📡 广播分组大小: 每组最多 {broadcast_group_size} 辆小车")
         print(f"📢 使用子网广播地址，端口: {BROADCAST_PORT}")
         local_ip = get_local_ip()
         print(f"🌐 服务器本地IP地址: {local_ip}")

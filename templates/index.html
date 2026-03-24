@@ -70,7 +70,7 @@
             z-index: 1;
         }
 
-        /* 坐标图区域 */
+        /* 坐标图区 */
         .coordinate-map {
             flex: 3;
             background: var(--panel-0);
@@ -311,6 +311,7 @@
             border-left: 4px solid #35d4c0;
             transition: all 0.3s ease;
             cursor: pointer;
+            position: relative;
         }
 
         .car-item:hover {
@@ -385,6 +386,91 @@
         .detail-value {
             font-weight: 600;
             color: var(--text-0);
+        }
+
+        .save-dot {
+            position: absolute;
+            right: 10px;
+            bottom: 10px;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: linear-gradient(140deg, #86f3e0, #35d4c0);
+            box-shadow: 0 0 10px rgba(53, 212, 192, 0.5);
+            border: 1px solid rgba(10, 30, 40, 0.6);
+            cursor: pointer;
+            z-index: 6;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            appearance: none;
+            outline: none;
+        }
+
+        .save-dot:active {
+            transform: scale(0.92);
+            box-shadow: 0 0 6px rgba(53, 212, 192, 0.6);
+        }
+
+        .save-dot::before {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 26px;
+            height: 26px;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+            background: transparent;
+        }
+
+        .save-menu {
+            position: absolute;
+            right: 10px;
+            bottom: 26px;
+            min-width: 120px;
+            background: rgba(8, 18, 30, 0.95);
+            border: 1px solid var(--line-1);
+            border-radius: 8px;
+            padding: 6px;
+            box-shadow: 0 10px 18px rgba(3, 10, 18, 0.55);
+            display: none;
+            z-index: 5;
+        }
+
+        .save-menu.open {
+            display: block;
+        }
+
+        .save-menu-title {
+            font-size: 10px;
+            color: var(--text-1);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            font-weight: 700;
+        }
+
+        .save-menu button {
+            width: 100%;
+            padding: 6px 8px;
+            margin-bottom: 4px;
+            background: rgba(18, 40, 55, 0.9);
+            color: var(--text-0);
+            border: 1px solid rgba(120, 210, 220, 0.25);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .save-menu button:last-child {
+            margin-bottom: 0;
+        }
+
+        .save-menu button:hover {
+            background: rgba(35, 150, 160, 0.8);
         }
 
         /* 控制面板 */
@@ -583,6 +669,11 @@
             box-shadow: 0 10px 20px rgba(3, 10, 18, 0.4);
             border: 1px solid var(--line-1);
             backdrop-filter: blur(6px);
+        }
+
+        .system-status,
+        .performance-info {
+            display: none;
         }
 
         /* ===== 精美遥控卡片样式 ===== */
@@ -1199,7 +1290,7 @@
                                             <button class="broadcast-btn broadcast-off" onclick="stopFormation()">停止编队</button>
                                         </div>
                                         <div class="broadcast-status" id="formationStatus">
-                                            状态: 未启动
+                                            状态: 未启用
                                         </div>
                                     </div>
 
@@ -1270,7 +1361,7 @@
                                                     <input type="number" id="heading" class="coord-input" placeholder="角度" min="0" max="360">
                                                 </div>
                                             </div>
-                                            <button class="action-btn" onclick="sendPositionCommand()">导航到指定位置</button>
+                                            <button class="action-btn" onclick="sendPositionCommand()">导航到指定位姿</button>
                                         </div>
                                         
                                         <div class="control-section" id="keyboardControlSection">
@@ -1333,7 +1424,7 @@
                                                                     <div class="stick">
                                                                         <div class="stick-dot" id="stickRightDot"></div>
                                                                     </div>
-                                                                    <div class="stick-label">右摇杆 (角速)</div>
+                                                                    <div class="stick-label">右摇杆 (角速度)</div>
                                                                 </div>
                                                             </div>
                                                             <div class="gamepad-row" style="margin-top: 6px;">
@@ -1348,21 +1439,21 @@
                                                     </div>
                                                     <div class="speed-dashboard">
                                                         <div class="speed-bar-container">
-                                                            <div class="speed-label">Vx (线)</div>
+                                                            <div class="speed-label">Vx (m/s)</div>
                                                             <div class="speed-track">
                                                                 <div class="speed-fill" id="bar-vx"></div>
                                                             </div>
                                                             <div class="speed-val" id="val-vx">0.00</div>
                                                         </div>
                                                         <div class="speed-bar-container">
-                                                            <div class="speed-label">Vy (侧)</div>
+                                                            <div class="speed-label">Vy (m/s)</div>
                                                             <div class="speed-track">
                                                                 <div class="speed-fill" id="bar-vy"></div>
                                                             </div>
                                                             <div class="speed-val" id="val-vy">0.00</div>
                                                         </div>
                                                         <div class="speed-bar-container">
-                                                            <div class="speed-label">Vz (角)</div>
+                                                            <div class="speed-label">Vz (rad/s)</div>
                                                             <div class="speed-track">
                                                                 <div class="speed-fill turn" id="bar-vz"></div>
                                                             </div>
@@ -1370,7 +1461,7 @@
                                                         </div>
                                                     </div>
                                                     <div style="font-size: 9px; color: #a0aec0; text-align: center; margin-top: 6px;">
-                                                        提示：支持全向组合键 (如 W+A斜行)
+                                                        提示：支持全向组合键 (如 W+A 斜行)
                                                     </div>
                                                 </div>
                                             </div>
@@ -1393,7 +1484,7 @@
                                                 <button class="broadcast-btn broadcast-off" onclick="toggleBroadcast(false)" id="broadcastOffBtn">关闭广播</button>
                                             </div>
                                             <div class="broadcast-status" id="broadcastStatus">
-                                                状态: 未启动
+                                                状态: 未启用
                                             </div>
                                         </div>
 
@@ -1479,7 +1570,7 @@
                 更新频率: 300ms | 小车: <span id="carCount">0</span>
             </div>
             <div class="angle-indicator">
-                角度系统: 0°=X轴正向, 逆时针增加
+                角度系统: 0°=X轴正方向, 逆时针增加
             </div>
         </div>
     </div>
@@ -1543,6 +1634,7 @@
         let selectedCarId = null;
         let lastUpdateTime = 0;
         let updateCount = 0;
+        let openSaveMenuCarId = null;
         let canvas, ctx;
         let gridImageData = null;
         let carPopup = document.getElementById('carPopup');
@@ -1662,7 +1754,7 @@
 
         function checkNetworkStatus() {
             const statusElement = document.getElementById('broadcastStatus');
-            statusElement.innerHTML = `状态: 未启动 | 广播端口: ${BROADCAST_CONFIG.port}`;
+            statusElement.innerHTML = `状态: 未启用 | 广播端口: ${BROADCAST_CONFIG.port}`;
         }
 
         function toggleSection(sectionId) {
@@ -2011,13 +2103,18 @@
 
         function updateCarList() {
             const carList = document.getElementById('carList');
+            if (openSaveMenuCarId) {
+                return;
+            }
 
             if (cars.length === 0) {
                 carList.innerHTML = '<div class="no-cars" style="text-align: center; padding: 15px;">等待小车连接...</div>';
                 return;
             }
 
-            carList.innerHTML = cars.map(car => `
+            carList.innerHTML = cars.map(car => {
+                const isMenuOpen = car.id === openSaveMenuCarId;
+                return `
                 <div class="car-item ${car.connected ? '' : 'disconnected'} ${car.id === selectedCarId ? 'selected' : ''}" onclick="selectCar('${car.id}')">
                     <div class="car-header">
                         <div class="car-id"> ${car.id.replace('CAR', 'ROBOT#')}</div>
@@ -2048,8 +2145,71 @@
                             </span>
                         </div>
                     </div>
+                    <button class="save-dot" type="button" title="位姿保存" aria-label="位姿保存" onclick="toggleSaveMenu('${car.id}', event)"></button>
+                    <div class="save-menu ${isMenuOpen ? 'open' : ''}" id="saveMenu-${car.id}" onclick="event.stopPropagation()">
+                        <div class="save-menu-title">位姿保存</div>
+                        <button onclick="requestPoseSave('${car.id}', 10, event)">保存 10s</button>
+                        <button onclick="requestPoseSave('${car.id}', 20, event)">保存 20s</button>
+                        <button onclick="requestPoseSave('${car.id}', 30, event)">保存 30s</button>
+                    </div>
                 </div>
-            `).join('');
+            `;
+            }).join('');
+        }
+
+        function closeAllSaveMenus() {
+            document.querySelectorAll('.save-menu.open').forEach(menu => {
+                menu.classList.remove('open');
+            });
+            openSaveMenuCarId = null;
+        }
+
+        function toggleSaveMenu(carId, event) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            const menu = document.getElementById(`saveMenu-${carId}`);
+            if (!menu) return;
+            const isOpen = menu.classList.contains('open');
+            closeAllSaveMenus();
+            if (!isOpen) {
+                menu.classList.add('open');
+                openSaveMenuCarId = carId;
+            }
+        }
+
+        function requestPoseSave(carId, durationSec, event) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            closeAllSaveMenus();
+            startPoseSave(carId, durationSec);
+        }
+
+        async function startPoseSave(carId, durationSec) {
+            try {
+                const response = await fetch('/api/save_pose', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ car_id: carId, duration: durationSec })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showMessage(`${result.message} | 文件: ${result.filename}`, 'success');
+                    const doneDelay = (result.duration || durationSec) * 1000 + 200;
+                    setTimeout(() => {
+                        showMessage(`保存完成 | 路径: ${result.save_path}`, 'success');
+                    }, doneDelay);
+                } else {
+                    showMessage(result.error, 'error');
+                }
+            } catch (error) {
+                console.error('保存位姿数据失败:', error);
+                showMessage('保存位姿数据失败', 'error');
+            }
         }
 
         function updateCarSelector() {
@@ -2073,6 +2233,8 @@
         function selectCar(carId) {
             selectedCarId = carId;
             document.getElementById('carSelector').value = carId;
+
+            closeAllSaveMenus();
 
             document.querySelectorAll('.car-item').forEach(item => {
                 item.classList.toggle('selected', item.querySelector('.car-id').textContent.includes(carId.replace('CAR', 'ROBOT#')));
@@ -2525,7 +2687,7 @@
         if(rcTitle) rcTitle.innerHTML = `🎮 领航者实时遥控 (${leaderId.replace('CAR', 'R#')})`;
         
     } else {
-        statusElement.innerHTML = '状态: <span style="color: #f56565;">未启动</span>';
+        statusElement.innerHTML = '状态: <span style="color: #f56565;">未启用</span>';
         if(dySection) dySection.style.display = 'none';
         
         // 编队停止：恢复单车控制
@@ -2535,8 +2697,8 @@
         // 恢复遥控器标题
         if(rcTitle) rcTitle.innerHTML = `🎮 单车实时遥控`;
         
-        // 【修复核心 2】：只有在之前处于编队状态（wasInFormation 为 true）时，才强制关闭键盘遥控
-        // 这样后台每 3 秒的轮询就不会再无故切断你的单车遥控器了！
+        // 【修复核心 2】：只有在之前处于编队状态（wasInFormation == true）时，才强制关闭键盘遥控
+        // 这样后台每 3 秒的轮询就不会再无故切断你的单车遥控器了。
         if (wasInFormation) {
             const kbCheckbox = document.getElementById('enableKeyboardCtrl');
             if (kbCheckbox && kbCheckbox.checked) {
@@ -2626,9 +2788,13 @@
                     }
                 });
             });
+
+            document.addEventListener('click', function() {
+                closeAllSaveMenus();
+            });
         });
 
-        // ==================== 终极键盘遥控核心逻辑 (带速度调节与强制霸体) ====================
+        // ==================== 终极键盘遥控核心逻辑 (带速度调节与强制霸占) ====================
         const keyboardState = {
             w: false, a: false, s: false, d: false, q: false, e: false
         };
@@ -2889,13 +3055,13 @@
             if (keyboardState.q) targetVz += maxAngular;   
             if (keyboardState.e) targetVz -= maxAngular;   
 
-            // 斜向移动归一化保护 (乘 0.707)
+            // 斜向移动归一化保护 (约 0.707)
             if (targetVx !== 0 && targetVy !== 0) {
                 targetVx *= 0.707;
                 targetVy *= 0.707;
             }
 
-            // 更新仪表盘 UI (基准最大刻度定为系统极值 0.7 和 2.2)
+            // 更新仪表盘 UI (基准最大刻度定为系统极限 0.7 / 2.2)
             updateSpeedBar('bar-vx', targetVx, 0.7);
             updateSpeedBar('bar-vy', targetVy, 0.7);
             updateSpeedBar('bar-vz', targetVz, 2.2);
