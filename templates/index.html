@@ -1629,6 +1629,28 @@
             }
         };
 
+        function buildOffsetsForLeaderFromConfig(baseConfig, leaderId) {
+            if (!baseConfig) return {};
+            const leaderBase = baseConfig[leaderId];
+            if (!leaderBase) return baseConfig;
+
+            const adjusted = {};
+            Object.keys(baseConfig).forEach(carId => {
+                const offset = baseConfig[carId] || {x: 0, y: 0, yaw: 0};
+                adjusted[carId] = {
+                    x: (offset.x || 0) - (leaderBase.x || 0),
+                    y: (offset.y || 0) - (leaderBase.y || 0),
+                    yaw: (offset.yaw || 0) - (leaderBase.yaw || 0)
+                };
+            });
+            return adjusted;
+        }
+
+        function buildOffsetsForLeader(formationType, leaderId) {
+            const baseConfig = FORMATION_CONFIGS[formationType] || FORMATION_CONFIGS['line'];
+            return buildOffsetsForLeaderFromConfig(baseConfig, leaderId);
+        }
+
         // ==================== 其他变量 ====================
         let cars = [];
         let selectedCarId = null;
@@ -1683,7 +1705,7 @@
             ctx.lineTo(width / 2, height);
             ctx.stroke();
             
-            const formation = FORMATION_CONFIGS[formationType] || FORMATION_CONFIGS['line'];
+            const formation = buildOffsetsForLeader(formationType, leaderId);
             
             Object.keys(formation).forEach(carId => {
                 const car = formation[carId];
@@ -1734,13 +1756,13 @@
                 const result = await response.json();
 
                 if (result.success && result.formation_configs[formationType]) {
-                    const config = result.formation_configs[formationType];
-                    
                     const leaderId = document.getElementById('leaderSelector').value;
+                    const config = result.formation_configs[formationType];
+                    const adjustedConfig = buildOffsetsForLeaderFromConfig(config, leaderId);
                     drawFormationPreview(formationType, leaderId);
 
                     if (formationType !== 'custom') {
-                        document.getElementById('customOffsets').value = JSON.stringify(config, null, 2);
+                        document.getElementById('customOffsets').value = JSON.stringify(adjustedConfig, null, 2);
                     }
                 }
             } catch (error) {
@@ -2527,22 +2549,7 @@
         }
 
         function setDefaultOffsets(formationType, leaderId) {
-            const defaults = {
-                'line': {
-                    'CAR1': {x: 0, y: 0}, 'CAR2': {x: -0.7, y: 0},
-                    'CAR3': {x: -1.4, y: 0}, 'CAR4': {x: -2.1, y: 0}
-                },
-                'Diamond': {
-                    'CAR1': {x: 0, y: 0}, 'CAR2': {x: -0.7, y: -0.7},
-                    'CAR3': {x: -0.7, y: 0.7}, 'CAR4': {x: -1.4, y: 0}
-                },
-                'square': {
-                    'CAR1': {x: 0, y: 0}, 'CAR2': {x: 0, y: -0.7},
-                    'CAR3': {x: -0.7, y: -0.7}, 'CAR4': {x: -0.7, y: 0}
-                }
-            };
-
-            const offsets = defaults[formationType] || defaults['line'];
+            const offsets = buildOffsetsForLeader(formationType, leaderId);
             const allCars = ['CAR1', 'CAR2', 'CAR3', 'CAR4'];
             const followers = allCars.filter(carId => carId !== leaderId);
 
@@ -2553,6 +2560,19 @@
                 if (xInput) xInput.value = offset.x;
                 if (yInput) yInput.value = offset.y;
             });
+        }
+
+        function syncFormationDefaultsUi(formationType, leaderId) {
+            setDefaultOffsets(formationType, leaderId);
+            drawFormationPreview(formationType, leaderId);
+
+            if (formationType !== 'custom') {
+                const customOffsetsEl = document.getElementById('customOffsets');
+                if (customOffsetsEl) {
+                    const adjusted = buildOffsetsForLeader(formationType, leaderId);
+                    customOffsetsEl.value = JSON.stringify(adjusted, null, 2);
+                }
+            }
         }
 
         function closeCarPopup() { 
@@ -2726,12 +2746,12 @@
             const container = document.getElementById('followerInputsContainer');
             container.innerHTML = generateFollowerInputs(leaderId);
             const formationType = document.getElementById('formationType').value;
-            setDefaultOffsets(formationType, leaderId);
+            syncFormationDefaultsUi(formationType, leaderId);
         }
 
         document.getElementById('formationType').addEventListener('change', function() {
             const leaderId = document.getElementById('leaderSelector').value;
-            setDefaultOffsets(this.value, leaderId);
+            syncFormationDefaultsUi(this.value, leaderId);
         });
 
         async function getFormationStatus() {
@@ -2739,7 +2759,22 @@
                 const response = await fetch('/api/formation/status');
                 const status = await response.json();
                 if (status.formation_enabled) {
+                    if (status.formation_leader) {
+                        const leaderSelector = document.getElementById('leaderSelector');
+                        if (leaderSelector && leaderSelector.value !== status.formation_leader) {
+                            leaderSelector.value = status.formation_leader;
+                        }
+                    }
+                    if (status.formation_type) {
+                        const formationTypeEl = document.getElementById('formationType');
+                        if (formationTypeEl && formationTypeEl.value !== status.formation_type) {
+                            formationTypeEl.value = status.formation_type;
+                        }
+                    }
                     updateFormationStatus(true, status.formation_leader, status.formation_type);
+                    if (status.formation_type && status.formation_type !== 'custom') {
+                        syncFormationDefaultsUi(status.formation_type, status.formation_leader);
+                    }
                 } else {
                     updateFormationStatus(false);
                 }

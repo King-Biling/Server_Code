@@ -32,6 +32,21 @@ FORMATION_CONFIGS = {
     }
 }
 
+def _build_offsets_for_leader(formation_type_name, leader_id):
+    base_offsets = FORMATION_CONFIGS.get(formation_type_name, FORMATION_CONFIGS["line"])
+    leader_base = base_offsets.get(leader_id)
+    if not leader_base:
+        return base_offsets
+
+    adjusted = {}
+    for car_id, offset in base_offsets.items():
+        adjusted[car_id] = {
+            "x": offset["x"] - leader_base["x"],
+            "y": offset["y"] - leader_base["y"],
+            "yaw": offset.get("yaw", 0) - leader_base.get("yaw", 0)
+        }
+    return adjusted
+
 def init_formation_controller(cars, server):
     global cars_dict, udp_server
     cars_dict = cars
@@ -57,10 +72,7 @@ def start_formation():
         return jsonify({'success': False, 'error': f'领航者 {leader_id} 未连接'})
     print(f"🚀 启动编队控制 - 领航者: {leader_id}, 队形: {formation_type}")
     
-    if formation_type in FORMATION_CONFIGS:
-        formation_offsets = FORMATION_CONFIGS[formation_type]
-    else:
-        formation_offsets = FORMATION_CONFIGS["line"]
+    formation_offsets = _build_offsets_for_leader(formation_type, leader_id)
         
     old_leader = formation_leader
     formation_leader = leader_id
@@ -94,7 +106,7 @@ def start_formation():
     if old_leader and old_leader != leader_id and old_leader in cars_dict:
         if cars_dict[old_leader].connected:
             start_cmd = f"[F,S,{leader_id},{formation_type}]"
-            offset = formation_offsets.get(car_id, {"x": 0, "y": 0, "yaw": 0})
+            offset = formation_offsets.get(old_leader, {"x": 0, "y": 0, "yaw": 0})
             follower_cmd = f"[F,F,{leader_id},{offset['x']},{offset['y']},{offset['yaw']}]"
             if send_formation_command(old_leader, start_cmd) and send_formation_command(old_leader, follower_cmd):
                 print(f"🔄 原领航者 {old_leader} 转换为跟随者")
