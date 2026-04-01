@@ -1663,6 +1663,12 @@
         let popupCarId = document.getElementById('popupCarId');
         let popupDetails = document.getElementById('popupDetails');
         let formationPreviewCanvas, formationPreviewCtx;
+        const formationUiState = {
+            lastLeader: null,
+            lastType: null,
+            isEditingOffsets: false,
+            offsetsDirty: false
+        };
 
         // 初始化队形预览画布
         function initFormationPreview() {
@@ -2548,6 +2554,26 @@
             return html;
         }
 
+        function wireFollowerInputState() {
+            const container = document.getElementById('followerInputsContainer');
+            if (!container) return;
+            const inputs = container.querySelectorAll('input');
+            inputs.forEach(input => {
+                input.addEventListener('focus', () => {
+                    formationUiState.isEditingOffsets = true;
+                });
+                input.addEventListener('blur', () => {
+                    const active = document.activeElement;
+                    if (!container.contains(active)) {
+                        formationUiState.isEditingOffsets = false;
+                    }
+                });
+                input.addEventListener('input', () => {
+                    formationUiState.offsetsDirty = true;
+                });
+            });
+        }
+
         function setDefaultOffsets(formationType, leaderId) {
             const offsets = buildOffsetsForLeader(formationType, leaderId);
             const allCars = ['CAR1', 'CAR2', 'CAR3', 'CAR4'];
@@ -2673,6 +2699,7 @@
                 const result = await response.json();
                 if (result.success) {
                     showMessage(result.message, 'success');
+                    formationUiState.offsetsDirty = false;
                 } else {
                     showMessage(result.error, 'error');
                 }
@@ -2709,6 +2736,8 @@
     } else {
         statusElement.innerHTML = '状态: <span style="color: #f56565;">未启用</span>';
         if(dySection) dySection.style.display = 'none';
+        formationUiState.isEditingOffsets = false;
+        formationUiState.offsetsDirty = false;
         
         // 编队停止：恢复单车控制
         singleCarInputs.forEach(el => { el.disabled = false; el.style.background = '#fff'; });
@@ -2747,10 +2776,14 @@
             container.innerHTML = generateFollowerInputs(leaderId);
             const formationType = document.getElementById('formationType').value;
             syncFormationDefaultsUi(formationType, leaderId);
+            formationUiState.offsetsDirty = false;
+            formationUiState.isEditingOffsets = false;
+            wireFollowerInputState();
         }
 
         document.getElementById('formationType').addEventListener('change', function() {
             const leaderId = document.getElementById('leaderSelector').value;
+            formationUiState.offsetsDirty = false;
             syncFormationDefaultsUi(this.value, leaderId);
         });
 
@@ -2759,6 +2792,8 @@
                 const response = await fetch('/api/formation/status');
                 const status = await response.json();
                 if (status.formation_enabled) {
+                    const leaderChanged = status.formation_leader && status.formation_leader !== formationUiState.lastLeader;
+                    const typeChanged = status.formation_type && status.formation_type !== formationUiState.lastType;
                     if (status.formation_leader) {
                         const leaderSelector = document.getElementById('leaderSelector');
                         if (leaderSelector && leaderSelector.value !== status.formation_leader) {
@@ -2772,11 +2807,20 @@
                         }
                     }
                     updateFormationStatus(true, status.formation_leader, status.formation_type);
-                    if (status.formation_type && status.formation_type !== 'custom') {
-                        syncFormationDefaultsUi(status.formation_type, status.formation_leader);
+                    if (leaderChanged) {
+                        updateDynamicAdjustSection(status.formation_leader);
                     }
+                    if (status.formation_type && status.formation_type !== 'custom') {
+                        if ((leaderChanged || typeChanged) && !formationUiState.isEditingOffsets && !formationUiState.offsetsDirty) {
+                            syncFormationDefaultsUi(status.formation_type, status.formation_leader);
+                        }
+                    }
+                    formationUiState.lastLeader = status.formation_leader;
+                    formationUiState.lastType = status.formation_type;
                 } else {
                     updateFormationStatus(false);
+                    formationUiState.lastLeader = null;
+                    formationUiState.lastType = null;
                 }
             } catch (error) {
                 console.error('获取编队状态失败:', error);
