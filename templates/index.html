@@ -1233,6 +1233,76 @@
             color: var(--text-1);
             margin-top: 3px;
         }
+
+        /* 重构控制面板 */
+        .reconstruct-panel {
+            display: grid;
+            gap: 10px;
+        }
+
+        .reconstruct-order {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 6px;
+        }
+
+        .reconstruct-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        .phase-badge {
+            padding: 4px 8px;
+            border-radius: 999px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            background: rgba(12, 26, 40, 0.7);
+            border: 1px solid rgba(120, 210, 220, 0.2);
+            color: var(--text-1);
+        }
+
+        .phase-badge.active {
+            background: rgba(53, 212, 192, 0.2);
+            color: var(--accent-1);
+            border-color: rgba(134, 243, 224, 0.4);
+        }
+
+        .phase-badge.warn {
+            background: rgba(255, 180, 84, 0.15);
+            color: #ffb454;
+            border-color: rgba(255, 180, 84, 0.4);
+        }
+
+        .reconstruct-flow {
+            display: grid;
+            gap: 6px;
+            margin-top: 8px;
+            padding: 8px;
+            background: rgba(8, 18, 30, 0.7);
+            border-radius: 8px;
+            border: 1px solid var(--line-1);
+        }
+
+        .flow-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 10px;
+            color: var(--text-1);
+        }
+
+        .flow-chip {
+            padding: 2px 6px;
+            border-radius: 6px;
+            background: rgba(12, 26, 40, 0.8);
+            border: 1px solid rgba(120, 210, 220, 0.2);
+            color: var(--text-0);
+            font-weight: 700;
+        }
     </style>
 </head>
 <body>
@@ -1332,6 +1402,87 @@
                             </div>
                         </div>
                         <div class="right-controls">
+                            <div class="collapsible-section">
+                                <div class="section-header" onclick="toggleSection('reconstructSection')">
+                                    重构控制
+                                </div>
+                                <div class="section-content expanded" id="reconstructSection">
+                                    <div class="control-panel compact-control reconstruct-panel">
+                                        <div class="control-section">
+                                            <h3>拼接顺序 (从头到尾)</h3>
+                                            <div class="reconstruct-order">
+                                                <div>
+                                                    <label>HEAD</label>
+                                                    <select id="reconstructHead" class="coord-input">
+                                                        <option value="CAR1">ROBOT#1</option>
+                                                        <option value="CAR2">ROBOT#2</option>
+                                                        <option value="CAR3">ROBOT#3</option>
+                                                        <option value="CAR4">ROBOT#4</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label>MID2</label>
+                                                    <select id="reconstructMid2" class="coord-input">
+                                                        <option value="CAR1">ROBOT#1</option>
+                                                        <option value="CAR2">ROBOT#2</option>
+                                                        <option value="CAR3">ROBOT#3</option>
+                                                        <option value="CAR4">ROBOT#4</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label>MID3</label>
+                                                    <select id="reconstructMid3" class="coord-input">
+                                                        <option value="CAR1">ROBOT#1</option>
+                                                        <option value="CAR2">ROBOT#2</option>
+                                                        <option value="CAR3">ROBOT#3</option>
+                                                        <option value="CAR4">ROBOT#4</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label>TAIL</label>
+                                                    <select id="reconstructTail" class="coord-input">
+                                                        <option value="CAR1">ROBOT#1</option>
+                                                        <option value="CAR2">ROBOT#2</option>
+                                                        <option value="CAR3">ROBOT#3</option>
+                                                        <option value="CAR4">ROBOT#4</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <button class="action-btn" onclick="applyDefaultReconstructOrder()" style="margin-top: 6px;">默认顺序 CAR1→CAR4</button>
+                                            <div class="broadcast-controls" style="margin-top: 8px;">
+                                                <button class="broadcast-btn broadcast-on" onclick="startReconstruct()">启动重构</button>
+                                                <button class="broadcast-btn broadcast-off" onclick="separateReconstruct()">结束重构</button>
+                                            </div>
+                                            <button class="action-btn" onclick="abortReconstruct()" style="margin-top: 6px;">中止流程</button>
+                                        </div>
+
+                                        <div class="control-section">
+                                            <h3>流程状态</h3>
+                                            <div class="reconstruct-badges" id="reconstructBadges">
+                                                <span class="phase-badge">IDLE</span>
+                                            </div>
+                                            <div class="reconstruct-flow">
+                                                <div class="flow-item">
+                                                    <span>等待车辆</span>
+                                                    <span class="flow-chip" id="reconstructWaiting">-</span>
+                                                </div>
+                                                <div class="flow-item">
+                                                    <span>已准备</span>
+                                                    <span class="flow-chip" id="reconstructPrepared">0</span>
+                                                </div>
+                                                <div class="flow-item">
+                                                    <span>当前顺序</span>
+                                                    <span class="flow-chip" id="reconstructOrder">-</span>
+                                                </div>
+                                                <div class="flow-item">
+                                                    <span>错误信息</span>
+                                                    <span class="flow-chip" id="reconstructError">-</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                             <div class="collapsible-section">
                                 <div class="section-header" onclick="toggleSection('carControlSection')">
                                     小车控制
@@ -2098,6 +2249,7 @@
                 updateCarList();
                 renderFrame();
                 updateCarSelector();
+                refreshReconstructSelectors();
                 updatePerformanceInfo(cars.length, endTime - startTime);
 
             } catch (error) {
@@ -2709,6 +2861,172 @@
             }
         }
 
+        function getReconstructOrder() {
+            return [
+                document.getElementById('reconstructHead').value,
+                document.getElementById('reconstructMid2').value,
+                document.getElementById('reconstructMid3').value,
+                document.getElementById('reconstructTail').value
+            ];
+        }
+
+        function orderHasDuplicates(order) {
+            return new Set(order).size !== order.length;
+        }
+
+        function applyDefaultReconstructOrder() {
+            const defaults = [
+                document.getElementById('reconstructHead'),
+                document.getElementById('reconstructMid2'),
+                document.getElementById('reconstructMid3'),
+                document.getElementById('reconstructTail')
+            ];
+            const order = ['CAR1', 'CAR2', 'CAR3', 'CAR4'];
+            defaults.forEach((selector, index) => {
+                if (!selector) return;
+                selector.value = order[index];
+            });
+        }
+
+        async function startReconstruct() {
+            const order = getReconstructOrder();
+            if (orderHasDuplicates(order)) {
+                showMessage('重构顺序包含重复小车，请检查', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/reconstruct/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ order })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    showMessage(result.message, 'success');
+                    getReconstructStatus();
+                } else {
+                    showMessage(result.error, 'error');
+                }
+            } catch (error) {
+                console.error('启动重构失败:', error);
+                showMessage('启动重构失败', 'error');
+            }
+        }
+
+        async function separateReconstruct() {
+            try {
+                const response = await fetch('/api/reconstruct/separate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const result = await response.json();
+                if (result.success) {
+                    showMessage(result.message, 'success');
+                    getReconstructStatus();
+                } else {
+                    showMessage(result.error, 'error');
+                }
+            } catch (error) {
+                console.error('结束重构失败:', error);
+                showMessage('结束重构失败', 'error');
+            }
+        }
+
+        async function abortReconstruct() {
+            try {
+                const response = await fetch('/api/reconstruct/abort', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const result = await response.json();
+                if (result.success) {
+                    showMessage(result.message, 'success');
+                    getReconstructStatus();
+                } else {
+                    showMessage(result.error, 'error');
+                }
+            } catch (error) {
+                console.error('中止重构失败:', error);
+                showMessage('中止重构失败', 'error');
+            }
+        }
+
+        function renderReconstructBadges(phase) {
+            const badges = document.getElementById('reconstructBadges');
+            if (!badges) return;
+            const phaseList = [
+                { key: 'idle', label: 'IDLE' },
+                { key: 'preparing', label: 'PREPARING' },
+                { key: 'assembling', label: 'ASSEMBLING' },
+                { key: 'assembled', label: 'ASSEMBLED' },
+                { key: 'separating', label: 'SEPARATING' },
+                { key: 'error', label: 'ERROR', warn: true }
+            ];
+            badges.innerHTML = phaseList.map(item => {
+                const active = item.key === phase ? 'active' : '';
+                const warn = item.warn ? 'warn' : '';
+                return `<span class="phase-badge ${active} ${warn}">${item.label}</span>`;
+            }).join('');
+        }
+
+        function formatReconstructOrder(order) {
+            if (!order || !order.length) return '-';
+            return order.map(carId => carId.replace('CAR', 'R#')).join(' → ');
+        }
+
+        async function getReconstructStatus() {
+            try {
+                const response = await fetch('/api/reconstruct/status');
+                const status = await response.json();
+                renderReconstructBadges(status.phase || 'idle');
+                const waitingEl = document.getElementById('reconstructWaiting');
+                const preparedEl = document.getElementById('reconstructPrepared');
+                const orderEl = document.getElementById('reconstructOrder');
+                const errorEl = document.getElementById('reconstructError');
+
+                if (waitingEl) {
+                    waitingEl.textContent = status.waiting_car_id
+                        ? status.waiting_car_id.replace('CAR', 'R#')
+                        : '-';
+                }
+                if (preparedEl) {
+                    preparedEl.textContent = (status.prepared || []).length.toString();
+                }
+                if (orderEl) {
+                    orderEl.textContent = formatReconstructOrder(status.order);
+                }
+                if (errorEl) {
+                    errorEl.textContent = status.last_error ? status.last_error : '-';
+                }
+            } catch (error) {
+                console.error('获取重构状态失败:', error);
+            }
+        }
+
+        function refreshReconstructSelectors() {
+            const selectors = [
+                document.getElementById('reconstructHead'),
+                document.getElementById('reconstructMid2'),
+                document.getElementById('reconstructMid3'),
+                document.getElementById('reconstructTail')
+            ];
+
+            const connectedCars = cars.filter(car => car.connected).map(car => car.id);
+            if (connectedCars.length === 0) return;
+
+            selectors.forEach(selector => {
+                if (!selector) return;
+                const current = selector.value;
+                selector.innerHTML = connectedCars
+                    .map(carId => `<option value="${carId}">${carId.replace('CAR', 'ROBOT#')}</option>`)
+                    .join('');
+                if (connectedCars.includes(current)) {
+                    selector.value = current;
+                }
+            });
+        }
+
         // ==================== 更新状态函数 ====================
         function updateFormationStatus(enabled, leaderId = '', formationType = '') {
     const statusElement = document.getElementById('formationStatus');
@@ -2850,6 +3168,8 @@
             setInterval(getBroadcastStatus, 5000);
             getTopologyStatus();
             setInterval(getTopologyStatus, 5000);
+            getReconstructStatus();
+            setInterval(getReconstructStatus, 2000);
 
             canvas.addEventListener('click', function(e) {
                 const rect = canvas.getBoundingClientRect();

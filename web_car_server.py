@@ -18,6 +18,19 @@ app.register_blueprint(formation_bp)
 cars = {}
 car_lock = threading.Lock()
 
+reconstruct_lock = threading.Lock()
+reconstruct_state = {
+    "active": False,
+    "phase": "idle",
+    "order": [],
+    "prepared": {},
+    "current_index": None,
+    "waiting_car_id": None,
+    "last_error": None
+}
+
+RECONSTRUCT_POS_LABELS = ["HEAD", "MID2", "MID3", "TAIL"]
+
 save_lock = threading.Lock()
 active_pose_saves = {}
 POSE_SAVE_DIRNAME = "pose_data"
@@ -212,6 +225,9 @@ class UDPServer:
             data = data.strip()
             if not data:
                 return
+            if data.startswith('[') and data.endswith(']') and data.startswith('[R,'):
+                if handle_reconstruct_report(data):
+                    return
             parts = data.split(':')
             if len(parts) != 2:
                 return
@@ -514,6 +530,117 @@ def update_topology_cache():
         topology_cache[target_car] = visible_cars
     print(f"🔧 拓扑缓存已更新: {topology_cache}")
 
+def _get_reconstruct_pos_label(index, total):
+    if total == 4 and 0 <= index < 4:
+        return RECONSTRUCT_POS_LABELS[index]
+    return f"P{index + 1}"
+
+def _reset_reconstruct_state():
+    reconstruct_state.update({
+        "active": False,
+        "phase": "idle",
+        "order": [],
+        "prepared": {},
+        "current_index": None,
+        "waiting_car_id": None,
+        "last_error": None
+    })
+
+def _send_reconstruct_step(car_id, index, total, is_separation=False):
+    pos_label = _get_reconstruct_pos_label(index, total)
+    if is_separation:
+        cmd = f"[R,SEP_STEP,{car_id},POS={pos_label}]"
+    else:
+        cmd = f"[R,STEP,{car_id},POS={pos_label}]"
+    return udp_server.send_to_car_reliable(car_id, cmd, max_retries=4)
+
+def _advance_reconstruct_assembly(car_id):
+    with reconstruct_lock:
+        if reconstruct_state["phase"] != "assembling":
+            return
+        if reconstruct_state["waiting_car_id"] != car_id:
+            return
+
+        order = reconstruct_state["order"]
+        index = reconstruct_state["current_index"]
+        if index is None:
+            return
+
+        next_index = index + 1
+        if next_index >= len(order):
+            reconstruct_state["phase"] = "assembled"
+            reconstruct_state["current_index"] = None
+            reconstruct_state["waiting_car_id"] = None
+            udp_server.broadcast_global_command("[R,DONE]")
+            return
+
+        reconstruct_state["current_index"] = next_index
+        reconstruct_state["waiting_car_id"] = order[next_index]
+        _send_reconstruct_step(order[next_index], next_index, len(order), is_separation=False)
+
+def _advance_reconstruct_separation(car_id):
+    with reconstruct_lock:
+        if reconstruct_state["phase"] != "separating":
+            return
+        if reconstruct_state["waiting_car_id"] != car_id:
+            return
+
+        order = reconstruct_state["order"]
+        index = reconstruct_state["current_index"]
+        if index is None:
+            return
+
+        next_index = index - 1
+        if next_index < 0:
+            udp_server.broadcast_global_command("[R,SEP_DONE]")
+            _reset_reconstruct_state()
+            return
+
+        reconstruct_state["current_index"] = next_index
+        reconstruct_state["waiting_car_id"] = order[next_index]
+        _send_reconstruct_step(order[next_index], next_index, len(order), is_separation=True)
+
+def handle_reconstruct_report(message):
+    if not (message.startswith('[') and message.endswith(']')):
+        return False
+    content = message[1:-1]
+    parts = [part.strip() for part in content.split(',') if part.strip()]
+    if len(parts) < 2 or parts[0] != "R":
+        return False
+
+    command = parts[1]
+    car_id = parts[2] if len(parts) > 2 else None
+
+    if command == "PREP_OK" and car_id:
+        with reconstruct_lock:
+            if reconstruct_state["phase"] != "preparing":
+                return True
+            if car_id not in reconstruct_state["order"]:
+                return True
+            reconstruct_state["prepared"][car_id] = True
+            if len(reconstruct_state["prepared"]) == len(reconstruct_state["order"]):
+                reconstruct_state["phase"] = "assembling"
+                reconstruct_state["current_index"] = 0
+                reconstruct_state["waiting_car_id"] = reconstruct_state["order"][0]
+                _send_reconstruct_step(reconstruct_state["order"][0], 0, len(reconstruct_state["order"]), is_separation=False)
+        return True
+
+    if command == "STEP_OK" and car_id:
+        _advance_reconstruct_assembly(car_id)
+        return True
+
+    if command == "SEP_OK" and car_id:
+        _advance_reconstruct_separation(car_id)
+        return True
+
+    if command in ("STEP_FAIL", "SEP_FAIL"):
+        with reconstruct_lock:
+            reconstruct_state["phase"] = "error"
+            reconstruct_state["last_error"] = message
+        return True
+
+    return False
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -600,6 +727,92 @@ def control_car_position():
         return jsonify({'success': True, 'message': f'导航指令已发送到小车 {car_id}'})
     else:
         return jsonify({'success': False, 'error': f'小车 {car_id} 未连接'})
+
+@app.route('/api/reconstruct/start', methods=['POST'])
+def start_reconstruct():
+    formation_info = get_formation_info()
+    if formation_info.get('enabled'):
+        return jsonify({'success': False, 'error': '编队执行中，无法启动重构'}), 400
+
+    data = request.json or {}
+    order = data.get('order') or ["CAR1", "CAR2", "CAR3", "CAR4"]
+    if not isinstance(order, list) or len(order) != 4:
+        return jsonify({'success': False, 'error': '需要提供4辆小车的重构顺序'}), 400
+    if len(set(order)) != 4:
+        return jsonify({'success': False, 'error': '重构顺序中包含重复小车'}), 400
+
+    with car_lock:
+        for car_id in order:
+            if car_id not in cars or not cars[car_id].connected:
+                return jsonify({'success': False, 'error': f'小车 {car_id} 未连接'}), 400
+
+    with reconstruct_lock:
+        if reconstruct_state["phase"] not in ("idle", "assembled"):
+            return jsonify({'success': False, 'error': '重构流程进行中，请先结束或中止'}), 400
+        reconstruct_state["active"] = True
+        reconstruct_state["phase"] = "preparing"
+        reconstruct_state["order"] = order
+        reconstruct_state["prepared"] = {}
+        reconstruct_state["current_index"] = None
+        reconstruct_state["waiting_car_id"] = None
+        reconstruct_state["last_error"] = None
+
+    udp_server.broadcast_global_command("[R,PREP]")
+    udp_server.broadcast_global_command(f"[R,ORDER,{','.join(order)}]")
+
+    return jsonify({
+        'success': True,
+        'message': '重构流程已启动，等待准备完成',
+        'order': order,
+        'waiting_car_id': None
+    })
+
+@app.route('/api/reconstruct/separate', methods=['POST'])
+def separate_reconstruct():
+    with reconstruct_lock:
+        if reconstruct_state["phase"] != "assembled":
+            return jsonify({'success': False, 'error': '当前未处于拼接完成状态'}), 400
+        order = reconstruct_state["order"]
+        if not order:
+            return jsonify({'success': False, 'error': '未找到重构顺序'}), 400
+
+        reconstruct_state["phase"] = "separating"
+        reconstruct_state["current_index"] = len(order) - 1
+        reconstruct_state["waiting_car_id"] = order[-1]
+        reconstruct_state["last_error"] = None
+
+    udp_server.broadcast_global_command("[R,SEP_BEGIN]")
+    _send_reconstruct_step(order[-1], len(order) - 1, len(order), is_separation=True)
+
+    return jsonify({
+        'success': True,
+        'message': '分离流程已启动',
+        'order': order,
+        'waiting_car_id': order[-1]
+    })
+
+@app.route('/api/reconstruct/abort', methods=['POST'])
+def abort_reconstruct():
+    udp_server.broadcast_global_command("[R,ABORT]")
+    with reconstruct_lock:
+        _reset_reconstruct_state()
+    return jsonify({
+        'success': True,
+        'message': '重构流程已中止'
+    })
+
+@app.route('/api/reconstruct/status')
+def get_reconstruct_status():
+    with reconstruct_lock:
+        state_snapshot = {
+            'active': reconstruct_state["active"],
+            'phase': reconstruct_state["phase"],
+            'order': list(reconstruct_state["order"]),
+            'prepared': list(reconstruct_state["prepared"].keys()),
+            'waiting_car_id': reconstruct_state["waiting_car_id"],
+            'last_error': reconstruct_state["last_error"]
+        }
+    return jsonify(state_snapshot)
 
 @app.route('/api/control_velocity', methods=['POST'])
 def control_car_velocity():
