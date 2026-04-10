@@ -26,7 +26,9 @@ reconstruct_state = {
     "prepared": {},
     "current_index": None,
     "waiting_car_id": None,
-    "last_error": None
+    "last_error": None,
+    "prev_topology": None,
+    "prev_topology_enabled": None
 }
 
 RECONSTRUCT_POS_LABELS = ["HEAD", "MID2", "MID3", "TAIL"]
@@ -50,6 +52,7 @@ communication_topology = [
     [0, 0, 0, 0],
     [0, 0, 0, 0]
 ]
+DEFAULT_COMMUNICATION_TOPOLOGY = [row[:] for row in communication_topology]
 topology_enabled = False
 topology_cache = {}
 
@@ -354,7 +357,7 @@ class UDPServer:
                         cars_to_broadcast[car_id] = car
             else:
                 cars_to_broadcast = connected_cars
-                
+
             if not cars_to_broadcast:
                 return True
                 
@@ -530,6 +533,38 @@ def update_topology_cache():
         topology_cache[target_car] = visible_cars
     print(f"🔧 拓扑缓存已更新: {topology_cache}")
 
+def _copy_topology(matrix):
+    return [row[:] for row in matrix]
+
+def _flatten_topology(matrix):
+    return ','.join(str(cell) for row in matrix for cell in row)
+
+def _apply_topology(matrix, enable):
+    global communication_topology, topology_enabled
+    communication_topology = _copy_topology(matrix)
+    update_topology_cache()
+
+    if enable and not topology_enabled:
+        udp_server.broadcast_global_command("[T,E,1]")
+
+    topology_cmd = f"[T,M,{_flatten_topology(communication_topology)}]"
+    udp_server.broadcast_global_command(topology_cmd)
+
+    if not enable and topology_enabled:
+        udp_server.broadcast_global_command("[T,E,0]")
+
+    topology_enabled = enable
+
+def _build_reconstruct_topology(order):
+    car_mapping = {"CAR1": 0, "CAR2": 1, "CAR3": 2, "CAR4": 3}
+    matrix = [[0 for _ in range(4)] for _ in range(4)]
+    for i in range(1, len(order)):
+        source = order[i - 1]
+        target = order[i]
+        if source in car_mapping and target in car_mapping:
+            matrix[car_mapping[source]][car_mapping[target]] = 1
+    return matrix
+
 def _get_reconstruct_pos_label(index, total):
     if total == 4 and 0 <= index < 4:
         return RECONSTRUCT_POS_LABELS[index]
@@ -543,7 +578,9 @@ def _reset_reconstruct_state():
         "prepared": {},
         "current_index": None,
         "waiting_car_id": None,
-        "last_error": None
+        "last_error": None,
+        "prev_topology": None,
+        "prev_topology_enabled": None
     })
 
 def _send_reconstruct_step(car_id, index, total, is_separation=False):
@@ -572,6 +609,7 @@ def _advance_reconstruct_assembly(car_id):
             reconstruct_state["current_index"] = None
             reconstruct_state["waiting_car_id"] = None
             udp_server.broadcast_global_command("[R,DONE]")
+            _restore_previous_topology()
             return
 
         reconstruct_state["current_index"] = next_index
@@ -619,6 +657,7 @@ def handle_reconstruct_report(message):
                 return True
             reconstruct_state["prepared"][car_id] = True
             if len(reconstruct_state["prepared"]) == len(reconstruct_state["order"]):
+                _switch_to_reconstruct_topology()
                 reconstruct_state["phase"] = "assembling"
                 reconstruct_state["current_index"] = 0
                 reconstruct_state["waiting_car_id"] = reconstruct_state["order"][0]
@@ -756,6 +795,8 @@ def start_reconstruct():
         reconstruct_state["current_index"] = None
         reconstruct_state["waiting_car_id"] = None
         reconstruct_state["last_error"] = None
+        reconstruct_state["prev_topology"] = _copy_topology(communication_topology)
+        reconstruct_state["prev_topology_enabled"] = topology_enabled
 
     udp_server.broadcast_global_command("[R,PREP]")
     udp_server.broadcast_global_command(f"[R,ORDER,{','.join(order)}]")
@@ -795,6 +836,7 @@ def separate_reconstruct():
 def abort_reconstruct():
     udp_server.broadcast_global_command("[R,ABORT]")
     with reconstruct_lock:
+        _restore_previous_topology()
         _reset_reconstruct_state()
     return jsonify({
         'success': True,
@@ -813,6 +855,26 @@ def get_reconstruct_status():
             'last_error': reconstruct_state["last_error"]
         }
     return jsonify(state_snapshot)
+
+def _switch_to_reconstruct_topology():
+    order = reconstruct_state.get("order") or []
+    if len(order) != 4:
+        return
+    reconstruct_topology = _build_reconstruct_topology(order)
+    _apply_topology(reconstruct_topology, enable=True)
+
+def _restore_previous_topology():
+    prev_topology = reconstruct_state.get("prev_topology")
+    prev_enabled = reconstruct_state.get("prev_topology_enabled")
+
+    if prev_topology is None or prev_enabled is None:
+        return
+
+    if prev_enabled:
+        _apply_topology(prev_topology, enable=True)
+        return
+
+    _apply_topology(DEFAULT_COMMUNICATION_TOPOLOGY, enable=False)
 
 @app.route('/api/control_velocity', methods=['POST'])
 def control_car_velocity():
