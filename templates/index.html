@@ -1757,7 +1757,10 @@
             previewRange: 2, 
             carSize: 5,      
             leaderColor: '#d97732', 
-            followerColor: '#2f7f6f' 
+            followerColor: '#2f7f6f',
+            arrowColor: 'rgba(47, 127, 111, 0.5)',
+            arrowWidth: 1,
+            arrowHeadSize: 6
         };
 
         // 队形配置数据
@@ -1804,6 +1807,33 @@
             return buildOffsetsForLeaderFromConfig(baseConfig, leaderId);
         }
 
+        function getTopologyMatrixFromDom() {
+            const matrix = [];
+            for (let i = 1; i <= 4; i++) {
+                const row = [];
+                for (let j = 1; j <= 4; j++) {
+                    const input = document.getElementById(`a${i}${j}`);
+                    const value = input ? parseInt(input.value, 10) : 0;
+                    row.push(Number.isFinite(value) ? value : 0);
+                }
+                matrix.push(row);
+            }
+            return matrix;
+        }
+
+        function refreshFormationPreview() {
+            const leaderId = document.getElementById('leaderSelector').value;
+            const formationType = document.getElementById('formationType').value;
+            drawFormationPreview(formationType, leaderId);
+        }
+
+        function wireTopologyPreviewListeners() {
+            const matrixInputs = document.querySelectorAll('.topology-matrix input');
+            matrixInputs.forEach(input => {
+                input.addEventListener('input', refreshFormationPreview);
+            });
+        }
+
         // ==================== 其他变量 ====================
         let cars = [];
         let selectedCarId = null;
@@ -1838,13 +1868,224 @@
         }
 
         // 绘制队形预览
+        function drawTopologyArrows(previewCtx, positions, matrix) {
+            const carIds = ['CAR1', 'CAR2', 'CAR3', 'CAR4'];
+            const color = FORMATION_PREVIEW_CONFIG.arrowColor;
+            const width = FORMATION_PREVIEW_CONFIG.arrowWidth;
+            const headSize = FORMATION_PREVIEW_CONFIG.arrowHeadSize;
+            const nodeRadius = FORMATION_PREVIEW_CONFIG.carSize;
+
+            const edges = buildTopologyEdges(matrix, carIds);
+
+            edges.forEach(edge => {
+                const from = positions[edge.fromId];
+                const to = positions[edge.toId];
+                if (!from || !to) return;
+
+                // 检查是否有其他车辆挡在两点连线上
+                let needsCurve = checkOverlap(from, to, positions, edge.fromId, edge.toId);
+                // 如果被挡住了，产生 35px 的完美避让弧度；如果没挡住，就是 0（画直线）
+                let offset = needsCurve ? 35 : 0; 
+
+                // 无论单向还是双向，两个节点间永远只调用一次绘制！
+                drawCurvedArrow(previewCtx, from, to, color, width, headSize, nodeRadius, offset, edge.mode);
+            });
+        }
+
+        function buildTopologyEdges(matrix, carIds) {
+            const edges = [];
+            for (let i = 0; i < carIds.length; i++) {
+                for (let j = i + 1; j < carIds.length; j++) {
+                    const forward = matrix[i] && matrix[i][j] === 1;
+                    const backward = matrix[j] && matrix[j][i] === 1;
+                    if (!forward && !backward) continue;
+                    if (forward && backward) {
+                        edges.push({ fromId: carIds[i], toId: carIds[j], mode: 'both' });
+                    } else if (forward) {
+                        edges.push({ fromId: carIds[i], toId: carIds[j], mode: 'forward' });
+                    } else {
+                        edges.push({ fromId: carIds[j], toId: carIds[i], mode: 'forward' });
+                    }
+                }
+            }
+            return edges;
+        }
+
+        function isLinePreview(positions) {
+            const points = Object.values(positions);
+            if (points.length < 2) return false;
+            const xs = points.map(point => point.x);
+            const ys = points.map(point => point.y);
+            const spreadX = Math.max(...xs) - Math.min(...xs);
+            const spreadY = Math.max(...ys) - Math.min(...ys);
+            return spreadY <= FORMATION_PREVIEW_CONFIG.carSize * 3 && spreadX >= FORMATION_PREVIEW_CONFIG.carSize * 8;
+        }
+
+        function buildLineOrderIndex(positions) {
+            const entries = Object.entries(positions)
+                .filter(([, point]) => point && typeof point.x === 'number')
+                .sort((a, b) => a[1].x - b[1].x);
+            const indexMap = {};
+            entries.forEach(([id], index) => {
+                indexMap[id] = index;
+            });
+            return indexMap;
+        }
+
+        function getPositionsCentroid(positions) {
+            const points = Object.values(positions);
+            if (!points.length) return { x: 0, y: 0 };
+            let sumX = 0;
+            let sumY = 0;
+            points.forEach(point => {
+                sumX += point.x;
+                sumY += point.y;
+            });
+            return { x: sumX / points.length, y: sumY / points.length };
+        }
+
+        function computeCurveOffset(from, to, positions, fromId, toId, linePreview, orderIndex) {
+            const dx = to.x - from.x;
+            const dy = to.y - from.y;
+            const distance = Math.hypot(dx, dy);
+            if (!distance) return 0;
+
+            if (linePreview && orderIndex) {
+                const start = orderIndex[fromId];
+                const end = orderIndex[toId];
+                if (Number.isFinite(start) && Number.isFinite(end)) {
+                    const span = Math.abs(end - start);
+                    if (span > 0) {
+                        return 30 * span;
+                    }
+                }
+            }
+
+            const blockThreshold = FORMATION_PREVIEW_CONFIG.carSize * 2.2;
+            let needsCurve = false;
+            Object.keys(positions).forEach(id => {
+                if (id === fromId || id === toId) return;
+                const point = positions[id];
+                if (!point) return;
+                const d = pointToSegmentDistance(point.x, point.y, from.x, from.y, to.x, to.y);
+                if (d < blockThreshold) {
+                    needsCurve = true;
+                }
+            });
+
+            if (!needsCurve) return 0;
+
+            const centroid = getPositionsCentroid(positions);
+            const midX = (from.x + to.x) / 2;
+            const midY = (from.y + to.y) / 2;
+            const perpX = -dy / distance;
+            const perpY = dx / distance;
+            const toCenterX = centroid.x - midX;
+            const toCenterY = centroid.y - midY;
+            const side = perpX * toCenterX + perpY * toCenterY > 0 ? -1 : 1;
+            return side * 35;
+        }
+
+        function checkOverlap(from, to, positions, fromId, toId) {
+            const blockThreshold = FORMATION_PREVIEW_CONFIG.carSize * 2.2;
+            const ids = Object.keys(positions);
+            for (let i = 0; i < ids.length; i++) {
+                const id = ids[i];
+                if (id === fromId || id === toId) continue;
+                const point = positions[id];
+                if (!point) continue;
+                const d = pointToSegmentDistance(point.x, point.y, from.x, from.y, to.x, to.y);
+                if (d < blockThreshold) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            if (dx === 0 && dy === 0) return Math.hypot(px - x1, py - y1);
+            const t = ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy);
+            const clamped = Math.max(0, Math.min(1, t));
+            const closestX = x1 + clamped * dx;
+            const closestY = y1 + clamped * dy;
+            return Math.hypot(px - closestX, py - closestY);
+        }
+
+        function drawCurvedArrow(ctx, from, to, color, width, headSize, nodeRadius, curveOffset, mode) {
+            const dx = to.x - from.x;
+            const dy = to.y - from.y;
+            const distance = Math.hypot(dx, dy);
+            if (distance < nodeRadius * 2) return;
+
+            const midX = (from.x + to.x) / 2;
+            const midY = (from.y + to.y) / 2;
+            const perpX = -dy / distance;
+            const perpY = dx / distance;
+            
+            // 控制点计算
+            const ctrlX = midX + perpX * curveOffset;
+            const ctrlY = midY + perpY * curveOffset;
+
+            // 精确计算起止点沿着法线的方向向量
+            const endDist = Math.hypot(to.x - ctrlX, to.y - ctrlY);
+            const endDirX = (to.x - ctrlX) / endDist;
+            const endDirY = (to.y - ctrlY) / endDist;
+            
+            const startDist = Math.hypot(ctrlX - from.x, ctrlY - from.y);
+            const startDirX = (ctrlX - from.x) / startDist;
+            const startDirY = (ctrlY - from.y) / startDist;
+
+            // 核心修复：如果是双向，起点的边距必须把起点箭头的大小也预留出来！
+            const hasStartArrow = (mode === 'both');
+            const startPadding = nodeRadius + (hasStartArrow ? headSize + 2 : 2);
+            const endPadding = nodeRadius + headSize + 2;
+            
+            const startX = from.x + startDirX * startPadding;
+            const startY = from.y + startDirY * startPadding;
+            const endX = to.x - endDirX * endPadding;
+            const endY = to.y - endDirY * endPadding;
+
+            // 绘制主线段
+            ctx.strokeStyle = color;
+            ctx.lineWidth = width;
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            if (curveOffset === 0) {
+                ctx.lineTo(endX, endY); // 没挡路就画笔直的线段
+            } else {
+                ctx.quadraticCurveTo(ctrlX, ctrlY, endX, endY); // 挡路了就画弧线绕过去
+            }
+            ctx.stroke();
+
+            // 绘制终点箭头 (切线角度完美对齐)
+            const endAngle = curveOffset === 0 ? Math.atan2(dy, dx) : Math.atan2(endY - ctrlY, endX - ctrlX);
+            drawArrowHead(ctx, endX, endY, endAngle, headSize, color);
+
+            // 如果是双向通信，绘制起点反向箭头
+            if (hasStartArrow) {
+                const startAngle = curveOffset === 0 ? Math.atan2(-dy, -dx) : Math.atan2(startY - ctrlY, startX - ctrlX);
+                drawArrowHead(ctx, startX, startY, startAngle, headSize, color);
+            }
+        }
+
+        function drawArrowHead(previewCtx, x, y, angle, headSize, color) {
+            previewCtx.fillStyle = color;
+            previewCtx.beginPath();
+            previewCtx.moveTo(x, y);
+            previewCtx.lineTo(x - headSize * Math.cos(angle - Math.PI / 6), y - headSize * Math.sin(angle - Math.PI / 6));
+            previewCtx.lineTo(x - headSize * Math.cos(angle + Math.PI / 6), y - headSize * Math.sin(angle + Math.PI / 6));
+            previewCtx.closePath();
+            previewCtx.fill();
+        }
+
         function drawFormationPreview(formationType, leaderId) {
             if (!formationPreviewCtx) return;
             
             const ctx = formationPreviewCtx;
             const width = FORMATION_PREVIEW_CONFIG.canvasWidth;
             const height = FORMATION_PREVIEW_CONFIG.canvasHeight;
-            const range = FORMATION_PREVIEW_CONFIG.previewRange;
             
             ctx.clearRect(0, 0, width, height);
             
@@ -1865,27 +2106,56 @@
             ctx.stroke();
             
             const formation = buildOffsetsForLeader(formationType, leaderId);
-            
+            const positions = {};
+            const padding = 35;
+            const coords = Object.values(formation).map(car => ({
+                x: car?.x || 0,
+                y: car?.y || 0
+            }));
+            const xs = coords.map(point => point.x);
+            const ys = coords.map(point => point.y);
+            const minX = Math.min(...xs);
+            const maxX = Math.max(...xs);
+            const minY = Math.min(...ys);
+            const maxY = Math.max(...ys);
+            const spanX = Math.max(1, maxX - minX);
+            const spanY = Math.max(1, maxY - minY);
+            const scaleX = (width - padding * 2) / spanX;
+            const scaleY = (height - padding * 2) / spanY;
+            const maxScale = 80;
+            const scale = Math.min(scaleX, scaleY, maxScale);
+            const centerX = width / 2 - ((minX + maxX) / 2) * scale;
+            const centerY = height / 2 + ((minY + maxY) / 2) * scale;
+
+            Object.keys(formation).forEach(carId => {
+                const car = formation[carId] || { x: 0, y: 0 };
+                const x = centerX + (car.x || 0) * scale;
+                const y = centerY - (car.y || 0) * scale;
+                positions[carId] = { x, y };
+            });
+
+            const topologyMatrix = getTopologyMatrixFromDom();
+            drawTopologyArrows(ctx, positions, topologyMatrix);
+
             Object.keys(formation).forEach(carId => {
                 const car = formation[carId];
-                
-                const x = (car.x / (range * 2)) * width + width / 2 + 35;
-                const y = height / 2 - (car.y / (range * 2)) * height;
-                
-                ctx.fillStyle = carId === leaderId ? 
-                    FORMATION_PREVIEW_CONFIG.leaderColor : 
+                const x = positions[carId].x;
+                const y = positions[carId].y;
+
+                ctx.fillStyle = carId === leaderId ?
+                    FORMATION_PREVIEW_CONFIG.leaderColor :
                     FORMATION_PREVIEW_CONFIG.followerColor;
-                
+
                 ctx.beginPath();
                 ctx.arc(x, y, FORMATION_PREVIEW_CONFIG.carSize, 0, Math.PI * 2);
                 ctx.fill();
-                
+
                 ctx.fillStyle = carId === leaderId ? '#24333a' : '#4f6775';
                 ctx.font = 'bold 7px Arial';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillText(carId.replace('CAR', 'R'), x, y);
-                
+
                 if (carId === leaderId) {
                     ctx.strokeStyle = '#4f6775';
                     ctx.lineWidth = 1;
@@ -2593,6 +2863,7 @@
                 }
 
                 updateVisibilityInfo();
+                refreshFormationPreview();
             } catch (error) {
                 console.error('获取拓扑状态失败:', error);
             }
@@ -3089,6 +3360,7 @@
 
         document.getElementById('leaderSelector').addEventListener('change', function() {
             updateDynamicAdjustSection(this.value);
+            refreshFormationPreview();
         });
 
         function updateDynamicAdjustSection(leaderId) {
@@ -3105,6 +3377,7 @@
             const leaderId = document.getElementById('leaderSelector').value;
             formationUiState.offsetsDirty = false;
             syncFormationDefaultsUi(this.value, leaderId);
+            refreshFormationPreview();
         });
 
         async function getFormationStatus() {
@@ -3150,6 +3423,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             initFormationPreview();
             loadFormationPreview('line');
+            wireTopologyPreviewListeners();
             const initialLeader = document.getElementById('leaderSelector').value;
             updateDynamicAdjustSection(initialLeader);
             setInterval(getFormationStatus, 3000);
