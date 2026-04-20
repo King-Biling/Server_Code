@@ -1323,7 +1323,7 @@
                             </div>
                             <div class="section-content expanded" id="carListSection">
                                 <div class="car-list left-panel-content" id="carList">
-                                    <div class="no-cars" style="text-align: center; color: #718096; padding: 15px;">
+                                    <div class="no-cars" style="text-align: center; color: var(--text-1); padding: 15px;">
                                         等待连接...
                                     </div>
                                 </div>
@@ -1384,7 +1384,7 @@
 
                                     <div class="control-section" id="customFormationSection" style="display: none;">
                                         <h3>自定义编队偏移</h3>
-                                        <div style="font-size: 10px; color: #666; margin-bottom: 6px;">
+                                        <div style="font-size: 10px; color: var(--text-1); margin-bottom: 6px;">
                                             格式: {"CAR2": {"x": 0.7, "y": 0, "yaw": 0}...}
                                         </div>
                                         <textarea id="customOffsets" class="coord-input" rows="3" placeholder='{"CAR2": {"x": -0.7, "y": 0, "yaw": 0}, "CAR3": {"x": -1.4, "y": 0, "yaw": 0}, "CAR4": {"x": -2.1, "y": 0, "yaw": 0}}' style="width: 100%; font-size: 10px;"></textarea>
@@ -1393,7 +1393,7 @@
 
                                     <div class="control-section" id="dynamicAdjustSection" style="display: none;">
                                         <h3>动态调整</h3>
-                                        <div style="font-size: 10px; color: #666; margin-bottom: 6px;">
+                                        <div style="font-size: 10px; color: var(--text-1); margin-bottom: 6px;">
                                             实时调整队形（仅限跟随者）
                                         </div>
                                         <div class="position-control" id="followerInputsContainer">
@@ -1519,31 +1519,31 @@
                                         
                                         <div class="control-section" id="keyboardControlSection">
                                             <div class="rc-panel">
-                                                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">
-                                                    <h3 id="rcTitle" style="color: #d35400; margin: 0; border: none; padding: 0;">🎮 单车实时遥控</h3>
+                                                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line-1); padding-bottom: 6px;">
+                                                    <h3 id="rcTitle" style="color: var(--warn-0); margin: 0; border: none; padding: 0;">🎮 单车实时遥控</h3>
                                                     <label class="switch" title="启用WASD遥控">
                                                         <input type="checkbox" id="enableKeyboardCtrl">
                                                         <span class="slider"></span>
                                                     </label>
                                                 </div>
                                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
-                                                    <div style="font-size: 12px; font-weight: bold; color: #2c3e50;">🕹 手柄控制</div>
+                                                    <div style="font-size: 12px; font-weight: bold; color: var(--text-0);">🕹 手柄控制</div>
                                                     <label class="switch" title="启用手柄遥控">
                                                         <input type="checkbox" id="enableGamepadCtrl">
                                                         <span class="slider"></span>
                                                     </label>
                                                 </div>
-                                                <div id="gamepadStatus" style="font-size: 10px; color: #718096; margin-top: 4px;">手柄状态: 未检测</div>
+                                                <div id="gamepadStatus" style="font-size: 10px; color: var(--text-1); margin-top: 4px;">手柄状态: 未检测</div>
                                                 <div id="rcBody" style="opacity: 0.4; pointer-events: none; transition: opacity 0.3s;">
                                                     
-                                                    <div style="margin: 10px 0; background: #f8fafc; padding: 8px 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
-                                                        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #2c3e50; margin-bottom: 4px; font-weight: bold;">
-                                                            <span>最大线速度 (0 ~ 0.7 m/s)</span> <span id="linearSpeedVal" style="color: #3498db;">0.35</span>
+                                                    <div style="margin: 10px 0; background: var(--panel-2); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--line-1);">
+                                                        <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-0); margin-bottom: 4px; font-weight: bold;">
+                                                            <span>最大线速度 (0 ~ 0.7 m/s)</span> <span id="linearSpeedVal" style="color: var(--accent-0);">0.35</span>
                                                         </div>
                                                         <input type="range" id="linearSpeedSlider" min="0" max="0.7" step="0.05" value="0.35" style="margin-bottom: 12px;">
 
-                                                        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #2c3e50; margin-bottom: 4px; font-weight: bold;">
-                                                            <span>最大角速度 (0 ~ 0.7π rad/s)</span> <span id="angularSpeedVal" style="color: #e67e22;">1.10</span>
+                                                        <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-0); margin-bottom: 4px; font-weight: bold;">
+                                                            <span>最大角速度 (0 ~ 0.7π rad/s)</span> <span id="angularSpeedVal" style="color: var(--warn-0);">1.10</span>
                                                         </div>
                                                         <input type="range" id="angularSpeedSlider" min="0" max="2.2" step="0.1" value="1.10">
                                                     </div>
@@ -1613,7 +1613,7 @@
                                                             <div class="speed-val" id="val-vz">0.00</div>
                                                         </div>
                                                     </div>
-                                                    <div style="font-size: 9px; color: #a0aec0; text-align: center; margin-top: 6px;">
+                                                    <div style="font-size: 9px; color: var(--text-1); text-align: center; margin-top: 6px;">
                                                         提示：支持全向组合键 (如 W+A 斜行)
                                                     </div>
                                                 </div>
@@ -1652,30 +1652,30 @@
                                                     <div class="matrix-header">R4</div>
 
                                                     <div class="matrix-header">R1</div>
-                                                    <div class="matrix-cell"><input type="number" id="a11" class="coord-input" value="0" min="0" max="1" readonly style="background: #f0f0f0;"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a11" class="coord-input" value="0" min="0" max="1" readonly style="background: var(--panel-3);"></div>
                                                     <div class="matrix-cell"><input type="number" id="a12" class="coord-input" value="0" min="0" max="1"></div>
                                                     <div class="matrix-cell"><input type="number" id="a13" class="coord-input" value="0" min="0" max="1"></div>
                                                     <div class="matrix-cell"><input type="number" id="a14" class="coord-input" value="0" min="0" max="1"></div>
 
                                                     <div class="matrix-header">R2</div>
                                                     <div class="matrix-cell"><input type="number" id="a21" class="coord-input" value="1" min="0" max="1"></div>
-                                                    <div class="matrix-cell"><input type="number" id="a22" class="coord-input" value="0" min="0" max="1" readonly style="background: #f0f0f0;"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a22" class="coord-input" value="0" min="0" max="1" readonly style="background: var(--panel-3);"></div>
                                                     <div class="matrix-cell"><input type="number" id="a23" class="coord-input" value="0" min="0" max="1"></div>
                                                     <div class="matrix-cell"><input type="number" id="a24" class="coord-input" value="0" min="0" max="1"></div>
 
                                                     <div class="matrix-header">R3</div>
                                                     <div class="matrix-cell"><input type="number" id="a31" class="coord-input" value="1" min="0" max="1"></div>
                                                     <div class="matrix-cell"><input type="number" id="a32" class="coord-input" value="0" min="0" max="1"></div>
-                                                    <div class="matrix-cell"><input type="number" id="a33" class="coord-input" value="0" min="0" max="1" readonly style="background: #f0f0f0;"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a33" class="coord-input" value="0" min="0" max="1" readonly style="background: var(--panel-3);"></div>
                                                     <div class="matrix-cell"><input type="number" id="a34" class="coord-input" value="0" min="0" max="1"></div>
 
                                                     <div class="matrix-header">R4</div>
                                                     <div class="matrix-cell"><input type="number" id="a41" class="coord-input" value="1" min="0" max="1"></div>
                                                     <div class="matrix-cell"><input type="number" id="a42" class="coord-input" value="0" min="0" max="1"></div>
                                                     <div class="matrix-cell"><input type="number" id="a43" class="coord-input" value="0" min="0" max="1"></div>
-                                                    <div class="matrix-cell"><input type="number" id="a44" class="coord-input" value="0" min="0" max="1" readonly style="background: #f0f0f0;"></div>
+                                                    <div class="matrix-cell"><input type="number" id="a44" class="coord-input" value="0" min="0" max="1" readonly style="background: var(--panel-3);"></div>
                                                 </div>
-                                                <div style="font-size: 9px; color: #666; text-align: center; margin-top: 3px;">
+                                                <div style="font-size: 9px; color: var(--text-1); text-align: center; margin-top: 3px;">
                                                     A(i,j)=1: Robot#i → Robot#j | 对角线固定为0
                                                 </div>
                                             </div>
@@ -2452,11 +2452,11 @@
             const offBtn = document.getElementById('broadcastOffBtn');
 
             if (enable) {
-                statusElement.innerHTML = `状态: <span style="color: #48bb78;">广播中</span> | 端口: ${BROADCAST_CONFIG.port}`;
+                statusElement.innerHTML = `状态: <span style="color: #2f7f6f;">广播中</span> | 端口: ${BROADCAST_CONFIG.port}`;
                 onBtn.classList.remove('inactive');
                 offBtn.classList.add('inactive');
             } else {
-                statusElement.innerHTML = `状态: <span style="color: #f56565;">已停止</span> | 端口: ${BROADCAST_CONFIG.port}`;
+                statusElement.innerHTML = `状态: <span style="color: #cc6a5c;">已停止</span> | 端口: ${BROADCAST_CONFIG.port}`;
                 onBtn.classList.add('inactive');
                 offBtn.classList.remove('inactive');
             }
@@ -2601,9 +2601,9 @@
         function updateTopologyStatus(enable) {
             const statusElement = document.getElementById('topologyStatus');
             if (enable) {
-                statusElement.innerHTML = '状态: <span style="color: #48bb78;">已启用</span>';
+                statusElement.innerHTML = '状态: <span style="color: #2f7f6f;">已启用</span>';
             } else {
-                statusElement.innerHTML = '状态: <span style="color: #f56565;">未启用</span>';
+                statusElement.innerHTML = '状态: <span style="color: #cc6a5c;">未启用</span>';
             }
         }
 
@@ -3043,24 +3043,24 @@
     const singleCarBtn = document.querySelector('#carControlSection .action-btn');
 
     if (enabled) {
-        statusElement.innerHTML = `状态: <span style="color: #48bb78;">编队中</span> - 领航者: ${leaderId.replace('CAR', 'ROBOT#')}, 队形: ${formationType}`;
+        statusElement.innerHTML = `状态: <span style="color: #2f7f6f;">编队中</span> - 领航者: ${leaderId.replace('CAR', 'ROBOT#')}, 队形: ${formationType}`;
         if(dySection) dySection.style.display = 'block';
         
         // 编队启动：禁用单车位置控制和选择
-        singleCarInputs.forEach(el => { el.disabled = true; el.style.background = '#f0f0f0'; });
+        singleCarInputs.forEach(el => { el.disabled = true; el.style.background = 'var(--panel-3)'; });
         if (singleCarBtn) { singleCarBtn.disabled = true; singleCarBtn.style.opacity = '0.5'; singleCarBtn.style.cursor = 'not-allowed'; }
         
         // 动态修改遥控器标题
         if(rcTitle) rcTitle.innerHTML = `🎮 领航者实时遥控 (${leaderId.replace('CAR', 'R#')})`;
         
     } else {
-        statusElement.innerHTML = '状态: <span style="color: #f56565;">未启用</span>';
+        statusElement.innerHTML = '状态: <span style="color: #cc6a5c;">未启用</span>';
         if(dySection) dySection.style.display = 'none';
         formationUiState.isEditingOffsets = false;
         formationUiState.offsetsDirty = false;
         
         // 编队停止：恢复单车控制
-        singleCarInputs.forEach(el => { el.disabled = false; el.style.background = '#fff'; });
+        singleCarInputs.forEach(el => { el.disabled = false; el.style.background = 'var(--bg-2)'; });
         if (singleCarBtn) { singleCarBtn.disabled = false; singleCarBtn.style.opacity = '1'; singleCarBtn.style.cursor = 'pointer'; }
         
         // 恢复遥控器标题
