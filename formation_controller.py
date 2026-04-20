@@ -37,6 +37,7 @@ def _build_offsets_for_leader(formation_type_name, leader_id):
     leader_base = base_offsets.get(leader_id)
     if not leader_base:
         return base_offsets
+    
 
     adjusted = {}
     for car_id, offset in base_offsets.items():
