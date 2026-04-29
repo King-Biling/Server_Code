@@ -478,6 +478,84 @@
             background: rgba(47, 127, 111, 0.18);
         }
 
+        /* ===== 视频流功能样式 ===== */
+        .video-stream-controls {
+            display: flex;
+            gap: 6px;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(47, 127, 111, 0.12);
+        }
+
+        .stream-btn {
+            flex: 1;
+            padding: 6px;
+            border: none;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stream-btn-start {
+            background: linear-gradient(120deg, rgba(62, 168, 143, 0.85), rgba(47, 127, 111, 0.85));
+            color: white;
+            border: 1px solid rgba(62, 168, 143, 0.3);
+        }
+
+        .stream-btn-start:hover:not(:disabled) {
+            background: linear-gradient(120deg, rgba(62, 168, 143, 0.98), rgba(47, 127, 111, 0.98));
+            transform: scale(1.02);
+        }
+
+        .stream-btn-stop {
+            background: linear-gradient(120deg, rgba(204, 106, 92, 0.85), rgba(169, 83, 92, 0.85));
+            color: white;
+            border: 1px solid rgba(204, 106, 92, 0.3);
+        }
+
+        .stream-btn-stop:hover:not(:disabled) {
+            background: linear-gradient(120deg, rgba(204, 106, 92, 0.98), rgba(169, 83, 92, 0.98));
+            transform: scale(1.02);
+        }
+
+        .stream-btn:active {
+            transform: scale(0.98);
+        }
+
+        .stream-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .video-stream-frame {
+            display: none;
+            margin-top: 8px;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid rgba(47, 127, 111, 0.2);
+        }
+
+        .video-stream-frame.active {
+            display: block;
+        }
+
+        .video-stream-frame img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .video-stream-status {
+            font-size: 9px;
+            color: var(--text-1);
+            margin-top: 4px;
+            text-align: center;
+        }
+
         /* 控制面板 */
         .control-panel {
             background: var(--panel-2);
@@ -1745,6 +1823,13 @@
                 <div id="coordinateRangeDisplay">坐标范围: X[-6, 6], Y[-6, 6] | 角度: 0°=X轴正方向, 逆时针增加</div>
             </div>
             <canvas id="coordinateCanvas"></canvas>
+            
+            <!-- 【全局视频流显示区域】 -->
+            <div style="background: rgba(0,0,0,0.5); padding: 10px; border-radius: 6px; margin: 10px; text-align: center; min-height: 200px; display: flex; align-items: center; justify-content: center;">
+                <img id="videoStream" src="" alt="实时视频流" style="max-width: 100%; max-height: 300px; border-radius: 6px; display: none;" />
+                <div id="videoStreamPlaceholder" style="color: rgba(255,255,255,0.5); font-size: 14px;">点击小车面板上的"开启画面"按钮查看视频流</div>
+            </div>
+            
             <div class="performance-info" id="performanceInfo">
                 更新频率: 300ms | 小车: <span id="carCount">0</span>
             </div>
@@ -2622,6 +2707,23 @@
                                 <span class="detail-value">${car.battery.toFixed(1)}V</span>
                             </div>
                         </div>
+                        
+                        <!-- 视频流控制按钮 -->
+                        <div class="video-stream-controls" onclick="event.stopPropagation()">
+                            <button class="stream-btn stream-btn-start" onclick="startVideoStream('${car.id}')" ${!car.connected ? 'disabled' : ''}>
+                                📹 开启画面
+                            </button>
+                            <button class="stream-btn stream-btn-stop" onclick="stopVideoStream('${car.id}')" ${!car.connected ? 'disabled' : ''}>
+                                ⏹️ 关闭画面
+                            </button>
+                        </div>
+                        
+                        <!-- 视频流显示区域 -->
+                        <div class="video-stream-frame" id="videoFrame-${car.id}">
+                            <img id="videoStream-${car.id}" src="" alt="视频流" />
+                            <div class="video-stream-status">正在接收画面...</div>
+                        </div>
+                        
                         <button class="save-dot" type="button" title="位姿保存" aria-label="位姿保存" onclick="toggleSaveMenu('${car.id}', event)"></button>
                         <div class="save-menu ${isMenuOpen ? 'open' : ''}" id="saveMenu-${car.id}" onclick="event.stopPropagation()">
                             <div class="save-menu-title">位姿保存</div>
@@ -2687,6 +2789,61 @@
             } catch (error) {
                 console.error('保存位姿数据失败:', error);
                 showMessage('保存位姿数据失败', 'error');
+            }
+        }
+
+        // ===== 视频流函数 =====
+        async function startVideoStream(carId) {
+            try {
+                const response = await fetch('/api/stream/toggle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ car_id: carId, enable: true })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showMessage(`已请求开启 ${carId} 的视频流`, 'success');
+                    // 【极其关键】强制执行拉流动作 - 这是前端缺失的致命逻辑
+                    const videoStream = document.getElementById('videoStream');
+                    const placeholder = document.getElementById('videoStreamPlaceholder');
+                    videoStream.src = "/api/stream/feed/" + carId + "?t=" + new Date().getTime();
+                    videoStream.style.display = 'block';
+                    if (placeholder) placeholder.style.display = 'none';
+                    console.log(`[视频流] 已设置拉流: /api/stream/feed/${carId}`);
+                } else {
+                    showMessage(`视频流开启失败: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                console.error('开启视频流失败:', error);
+                showMessage('开启视频流失败', 'error');
+            }
+        }
+
+        async function stopVideoStream(carId) {
+            try {
+                const response = await fetch('/api/stream/toggle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ car_id: carId, enable: false })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showMessage(`已请求关闭 ${carId} 的视频流`, 'success');
+                    // 【极其关键】强制执行停止拉流 - 清空src并显示placeholder
+                    const videoStream = document.getElementById('videoStream');
+                    const placeholder = document.getElementById('videoStreamPlaceholder');
+                    videoStream.src = "";
+                    videoStream.style.display = 'none';
+                    if (placeholder) placeholder.style.display = 'block';
+                    console.log(`[视频流] 已停止拉流`);
+                } else {
+                    showMessage(`视频流关闭失败: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                console.error('关闭视频流失败:', error);
+                showMessage('关闭视频流失败', 'error');
             }
         }
 

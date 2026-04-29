@@ -340,6 +340,95 @@ class ImageReassemblySession:
         return (time.time() - self.start_time) * 1000 > IMAGE_REASSEMBLE_TIMEOUT
 
 
+class VideoStreamManager:
+    """高度模块化的视频流管理器"""
+    def __init__(self):
+        self.stream_sessions = {}  # {car_id: ImageReassemblySession}
+        self.latest_frames = {}    # {car_id: binary_jpeg_data}
+        self.stream_enabled = {}   # {car_id: bool}
+        self.lock = threading.RLock()
+        self.stream_timeout = 500  # 毫秒，同步IMAGE_REASSEMBLE_TIMEOUT
+        self.session_window_per_car = 3
+        self.sessions = {}
+    
+    def handle_meta(self, car_id, seq, width, height, format_id, total_len):
+        """处理图传元数据"""
+        try:
+            print(f"📷 [UDP流] 收到元数据: 小车={car_id}, 序列号={seq}, 尺寸={total_len}字节")
+            session = ImageReassemblySession(car_id, seq, width, height, format_id, total_len)
+            with self.lock:
+                self.stream_sessions[car_id] = session
+            return True
+        except Exception as e:
+            print(f"❌ 处理VideoStream元数据失败 ({car_id}): {e}")
+            return False
+    
+    def handle_chunk(self, car_id, seq, idx, tot, size, payload):
+        if idx == 0 or idx == "0":
+            print(f"📦 [UDP流] 收到首片数据: 小车={car_id}, 序列号={seq}")
+            
+        session_key = (car_id, seq)
+        with self.lock:
+            if session_key not in self.sessions:
+                self.sessions[session_key] = {
+                    'total_chunks': int(tot),
+                    'chunks': {},
+                    'start_time': time.time()
+                }
+                
+            session = self.sessions[session_key]
+            
+            # 强制将索引转为整数，并存入二进制 payload
+            session['chunks'][int(idx)] = payload
+            session['total_chunks'] = int(tot)
+            
+            # 判断是否收集齐了所有分片
+            if len(session['chunks']) >= session['total_chunks']:
+                try:
+                    # 暴力稳健法：把字典里所有的分片按照索引从小到大排序，然后全部拼接起来！
+                    sorted_chunks = [session['chunks'][k] for k in sorted(session['chunks'].keys())]
+                    image_data = b''.join(sorted_chunks)
+                    
+                    self.latest_frames[car_id] = image_data
+                    print(f"✅ [重组层] 图像拼装完成! 小车={car_id}, 字节={len(image_data)}")
+                except Exception as e:
+                    print(f"❌ 图像拼接失败: {e}")
+                
+                del self.sessions[session_key]
+    
+    def get_latest_frame(self, car_id):
+        """获取最新一帧JPEG二进制数据"""
+        with self.lock:
+            return self.latest_frames.get(car_id)
+    
+    def request_stream(self, car_id, enable, udp_server):
+        """向小车请求开启或关闭视频流"""
+        try:
+            with self.lock:
+                self.stream_enabled[car_id] = enable
+            
+            if enable:               
+                cmd = f"[V,START,{car_id}]"
+                print(f"📹 请求开启视频流: {car_id}")
+            else:                
+                cmd = f"[V,STOP,{car_id}]"
+                print(f"⏹️ 请求关闭视频流: {car_id}")
+            
+            # 通过UDP服务器发送命令
+            if udp_server:
+                udp_server.send_to_car(car_id, cmd)
+                return True
+            return False
+        except Exception as e:
+            print(f"❌ 视频流请求失败 ({car_id}): {e}")
+            return False
+    
+    def is_stream_enabled(self, car_id):
+        """查询某小车的流状态"""
+        with self.lock:
+            return self.stream_enabled.get(car_id, False)
+
+
 class GuideController:
     """末端制导控制器"""
     def __init__(self, car_id):
@@ -579,6 +668,80 @@ class UDPServer:
 
     def _handle_car_data(self, data, addr):
         try:
+            car_id = None
+            
+            # =====================================================
+            # 【二进制防乱码拦截】在任何.decode()之前进行
+            # =====================================================
+            if isinstance(data, bytes):
+                # 【V,META】元数据拦截（新协议）：[V,META,CARx,seq,total_len]
+                if b'[V,META' in data:
+                    try:
+                        # META 可能是纯文本包，也可能带换行；统一先截取文本头
+                        header_end = data.find(b'\n')
+                        header_bytes = data[:header_end] if header_end > 0 else data
+                        header_text = header_bytes.decode('utf-8', errors='ignore').strip()
+                        if header_text.startswith('[') and header_text.endswith(']'):
+                            content = header_text[1:-1]  # 去掉[和]
+                            parts = [p.strip() for p in content.split(',')]
+                            # 期望: [V, META, car_id, seq, total_len]
+                            if len(parts) >= 5 and parts[0] == 'V' and parts[1] == 'META':
+                                car_id = parts[2]
+                                seq = int(parts[3])
+                                total_len = int(parts[4])
+
+                                # 新协议不携带宽高和格式，使用默认占位
+                                video_manager.handle_meta(car_id, seq, 0, 0, 0, total_len)
+
+                                # 更新 car 最后活动时间（续命）
+                                current_time = time.time()
+                                with car_lock:
+                                    if car_id in cars:
+                                        cars[car_id].last_update = current_time
+                                        cars[car_id].connected = True
+                                return  # 阻止后续处理
+                    except Exception as e:
+                        print(f"⚠️ VideoStream元数据解析异常: {e}")
+                        return
+                
+                # 【V,CHUNK】分片数据拦截（新协议）：[V,CHUNK,CARx,seq,idx,tot,sz]\n<binary_data>
+                if b'[V,CHUNK' in data and b'\n' in data:
+                    header_end = data.find(b'\n')
+                    if header_end > 0:
+                        header_bytes = data[:header_end]
+                        binary_payload = data[header_end + 1:]
+                        header_text = header_bytes.decode('utf-8', errors='ignore').strip()
+                        if header_text.startswith('[') and header_text.endswith(']'):
+                            try:
+                                content = header_text[1:-1]  # 去掉[和]
+                                parts = [p.strip() for p in content.split(',')]
+                                # 期望: [V, CHUNK, car_id, seq, idx, tot, sz]
+                                if len(parts) >= 7 and parts[0] == 'V' and parts[1] == 'CHUNK':
+                                    car_id = parts[2]
+                                    seq = int(parts[3])
+                                    chunk_idx = int(parts[4])
+                                    total_chunks = int(parts[5])
+                                    chunk_size = int(parts[6])
+
+                                    # 通过 video_manager 处理分片（严禁对 JPEG 数据做 UTF-8 解码）
+                                    video_manager.handle_chunk(car_id, seq, chunk_idx, total_chunks,
+                                                               chunk_size, binary_payload)
+
+                                    # 更新 car 最后活动时间（续命）
+                                    current_time = time.time()
+                                    with car_lock:
+                                        if car_id in cars:
+                                            cars[car_id].last_update = current_time
+                                            cars[car_id].connected = True
+                                    # 【关键】绝对阻止后续处理，防止对二进制数据的错误处理
+                                    return
+                            except Exception as e:
+                                print(f"⚠️ VideoStream分片解析异常: {e}")
+                                return
+            
+            # =====================================================
+            # 以下是原有的重构和遥测数据处理逻辑
+            # =====================================================
             car_id = None
             # 字节流先交给重构解析器（可处理 IMG_CHUNK 的二进制载荷）
             if isinstance(data, bytes):
@@ -1039,6 +1202,9 @@ class UDPServer:
         if self.socket:
             self.socket.close()
         self.broadcast_server.stop()
+
+# 初始化全局视频流管理器
+video_manager = VideoStreamManager()
 
 udp_server = UDPServer(UDP_HOST, UDP_PORT)
 
@@ -2218,6 +2384,89 @@ def save_pose():
         'save_path': result["save_path"],
         'duration': duration
     })
+
+@app.route('/api/stream/toggle', methods=['POST'])
+def toggle_stream():
+    """控制视频流开启/关闭"""
+    try:
+        data = request.json
+        car_id = data.get('car_id')
+        enable = data.get('enable', False)
+        
+        if not car_id:
+            return jsonify({'success': False, 'error': '缺少car_id'})
+        
+        # 检查小车是否连接
+        with car_lock:
+            if car_id not in cars or not cars[car_id].connected:
+                return jsonify({'success': False, 'error': f'小车 {car_id} 未连接'})
+        
+        # 请求开启或关闭视频流
+        success = video_manager.request_stream(car_id, enable, udp_server)
+        
+        status = "开启" if enable else "关闭"
+        if success:
+            return jsonify({
+                'success': True,
+                'message': f'已请求{status}视频流: {car_id}',
+                'car_id': car_id,
+                'enabled': enable
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'视频流{status}请求失败'
+            })
+    except Exception as e:
+        print(f"❌ 视频流控制错误: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/stream/feed/<car_id>')
+def stream_feed(car_id):
+    """提供MJPEG推流（多帧分界符分离）"""
+    def generate():
+        fps = 5  # 设定FPS以防止死循环
+        frame_interval = 1.0 / fps
+        last_frame_time = 0
+        last_frame_data = None
+        
+        try:
+            while True:
+                current_time = time.time()
+                
+                # 获取最新一帧
+                frame_data = video_manager.get_latest_frame(car_id)
+                
+                # 如果有新帧且距上次发送超过间隔时间
+                if frame_data and (current_time - last_frame_time >= frame_interval or frame_data != last_frame_data):
+                    last_frame_time = current_time
+                    last_frame_data = frame_data
+                    
+                    # MJPEG格式：每帧前添加分界符和Content-Length
+                    yield (b'--frame\r\n'
+                           b'Content-Type: image/jpeg\r\n'
+                           b'Content-Length: ' + str(len(frame_data)).encode() + b'\r\n'
+                           b'Content-Disposition: inline\r\n'
+                           b'\r\n' + frame_data + b'\r\n')
+                else:
+                    # 没有新帧时短暂等待
+                    time.sleep(0.05)
+                    
+        except Exception as e:
+            print(f"⚠️ 流生成器错误 ({car_id}): {e}")
+    
+    try:
+        response = app.response_class(
+            generate(),
+            mimetype='multipart/x-mixed-replace; boundary=frame'
+        )
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        return response
+    except Exception as e:
+        print(f"❌ 推流错误 ({car_id}): {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 def get_local_ip():
     try:
