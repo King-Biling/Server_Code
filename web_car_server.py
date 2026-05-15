@@ -362,7 +362,8 @@ class GuideController:
         # PID控制（简化版，只有P项）
         vx = GUIDE_P_GAIN_X * error_x
         vy = GUIDE_P_GAIN_Y * error_y
-        vz = GUIDE_P_GAIN_YAW * error_yaw
+        # 航向控制改用小车自身航向角与前车航向角
+        vz = GUIDE_P_GAIN_YAW * _get_front_heading_error(self.car_id)
         
         # 速度限制
         speed_magnitude = (vx**2 + vy**2)**0.5
@@ -1078,8 +1079,9 @@ def _vision_loop():
                 continue
 
             success, z_dist, x_offset, yaw_angle, out_frame = estimator.process_frame(frame, target_car)
-            error_x = float(x_offset) * 100.0 if success else 0.0
-            error_y = float(z_dist) * 100.0 if success else 0.0
+            # 映射到小车坐标：前进误差使用 z_dist，横向误差使用 -x_offset
+            error_x = float(z_dist) * 100.0 if success else 0.0
+            error_y = -float(x_offset) * 100.0 if success else 0.0
             error_yaw = float(yaw_angle) if success else 0.0
 
             _update_vision_snapshot(target_car, out_frame, (error_x, error_y, error_yaw), success)
@@ -1370,6 +1372,42 @@ def _run_separation_sequence(order):
         reconstruct_state["current_index"] = None
 
     _restore_previous_topology()
+
+def _wrap_angle_deg(angle_deg):
+    """Wrap angle to (-180, 180]."""
+    while angle_deg <= -180:
+        angle_deg += 360
+    while angle_deg > 180:
+        angle_deg -= 360
+    return angle_deg
+
+def _get_front_heading_error(car_id):
+    """Heading error = front car heading - current car heading (deg)."""
+    with reconstruct_lock:
+        order = list(reconstruct_state.get("order", []))
+        waiting = reconstruct_state.get("waiting_car_id")
+
+    if not order or waiting != car_id:
+        return 0.0
+
+    try:
+        idx = order.index(car_id)
+    except ValueError:
+        return 0.0
+
+    if idx <= 0:
+        return 0.0
+
+    front_car_id = order[idx - 1]
+    with car_lock:
+        if car_id not in cars or front_car_id not in cars:
+            return 0.0
+        if not cars[car_id].connected or not cars[front_car_id].connected:
+            return 0.0
+        current_heading = cars[car_id].heading
+        front_heading = cars[front_car_id].heading
+
+    return _wrap_angle_deg(front_heading - current_heading)
 
 def _update_guide_controller(car_id, pose_error):
     """更新制导控制器"""
