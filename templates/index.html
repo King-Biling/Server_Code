@@ -478,84 +478,6 @@
             background: rgba(47, 127, 111, 0.18);
         }
 
-        /* ===== 视频流功能样式 ===== */
-        .video-stream-controls {
-            display: flex;
-            gap: 6px;
-            margin-top: 8px;
-            padding-top: 8px;
-            border-top: 1px solid rgba(47, 127, 111, 0.12);
-        }
-
-        .stream-btn {
-            flex: 1;
-            padding: 6px;
-            border: none;
-            border-radius: 6px;
-            font-size: 11px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .stream-btn-start {
-            background: linear-gradient(120deg, rgba(62, 168, 143, 0.85), rgba(47, 127, 111, 0.85));
-            color: white;
-            border: 1px solid rgba(62, 168, 143, 0.3);
-        }
-
-        .stream-btn-start:hover:not(:disabled) {
-            background: linear-gradient(120deg, rgba(62, 168, 143, 0.98), rgba(47, 127, 111, 0.98));
-            transform: scale(1.02);
-        }
-
-        .stream-btn-stop {
-            background: linear-gradient(120deg, rgba(204, 106, 92, 0.85), rgba(169, 83, 92, 0.85));
-            color: white;
-            border: 1px solid rgba(204, 106, 92, 0.3);
-        }
-
-        .stream-btn-stop:hover:not(:disabled) {
-            background: linear-gradient(120deg, rgba(204, 106, 92, 0.98), rgba(169, 83, 92, 0.98));
-            transform: scale(1.02);
-        }
-
-        .stream-btn:active {
-            transform: scale(0.98);
-        }
-
-        .stream-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .video-stream-frame {
-            display: none;
-            margin-top: 8px;
-            border-radius: 6px;
-            overflow: hidden;
-            border: 1px solid rgba(47, 127, 111, 0.2);
-        }
-
-        .video-stream-frame.active {
-            display: block;
-        }
-
-        .video-stream-frame img {
-            width: 100%;
-            height: auto;
-            display: block;
-        }
-
-        .video-stream-status {
-            font-size: 9px;
-            color: var(--text-1);
-            margin-top: 4px;
-            text-align: center;
-        }
-
         /* 控制面板 */
         .control-panel {
             background: var(--panel-2);
@@ -1093,6 +1015,93 @@
             border: 1px solid var(--line-1);
         }
 
+        /* 视觉监控弹窗 */
+        .video-popup {
+            position: fixed;
+            left: 40px;
+            top: 80px;
+            width: 360px;
+            background: rgba(16, 22, 28, 0.92);
+            border: 1px solid rgba(120, 140, 150, 0.45);
+            border-radius: 12px;
+            overflow: hidden;
+            z-index: 9999;
+            box-shadow: 0 20px 40px rgba(10, 18, 24, 0.4);
+            display: none;
+        }
+
+        .video-popup.visible {
+            display: block;
+        }
+
+        .video-popup-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            background: linear-gradient(120deg, rgba(38, 52, 64, 0.95), rgba(18, 26, 32, 0.95));
+            color: #e6eef0;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.8px;
+            cursor: move;
+            user-select: none;
+        }
+
+        .video-popup-close {
+            background: rgba(230, 238, 240, 0.12);
+            border: 1px solid rgba(230, 238, 240, 0.3);
+            color: #e6eef0;
+            width: 22px;
+            height: 22px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .video-popup-body {
+            position: relative;
+            background: #0f151a;
+        }
+
+        .video-popup-body img {
+            width: 100%;
+            display: block;
+        }
+
+        .video-popup-overlay {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            padding: 10px 12px;
+            background: linear-gradient(to bottom, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.8));
+            color: #f7f4ee;
+            font-family: monospace;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .video-popup-overlay span {
+            white-space: nowrap;
+        }
+
+        .video-popup-warning {
+            position: absolute;
+            left: 12px;
+            top: 12px;
+            background: rgba(217, 119, 50, 0.85);
+            color: #1b0e04;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: 700;
+            display: none;
+        }
+
         .car-popup h3 {
             margin-bottom: 6px;
             color: var(--text-0);
@@ -1325,6 +1334,52 @@
             gap: 6px;
         }
 
+        .reconstruct-order-list {
+            display: grid;
+            gap: 6px;
+        }
+
+        .order-item {
+            display: grid;
+            grid-template-columns: 28px 1fr 28px;
+            gap: 6px;
+            align-items: center;
+            padding: 6px;
+            background: var(--panel-3);
+            border: 1px solid var(--line-1);
+            border-radius: 8px;
+        }
+
+        .order-item.dragging {
+            opacity: 0.6;
+            border-style: dashed;
+        }
+
+        .order-handle {
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            background: rgba(47, 127, 111, 0.2);
+            color: var(--text-0);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            cursor: grab;
+            user-select: none;
+        }
+
+        .order-remove {
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            border: 1px solid rgba(217, 119, 50, 0.35);
+            background: rgba(217, 119, 50, 0.12);
+            color: #8a4b1f;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
         .reconstruct-badges {
             display: flex;
             flex-wrap: wrap;
@@ -1417,7 +1472,7 @@
                                     <div class="control-section">
                                         <h3>编队设置</h3>
                                         <div style="margin-bottom: 8px;">
-                                            <label>领航车:</label>
+                                            <label>领航者:</label>
                                             <select id="leaderSelector" class="coord-input">
                                                 <option value="CAR1">ROBOT#1</option>
                                                 <option value="CAR2">ROBOT#2</option>
@@ -1488,46 +1543,12 @@
                                 <div class="section-content expanded" id="reconstructSection">
                                     <div class="control-panel compact-control reconstruct-panel">
                                         <div class="control-section">
-                                            <h3>拼接顺序 (从头到尾)</h3>
-                                            <div class="reconstruct-order">
-                                                <div>
-                                                    <label>HEAD</label>
-                                                    <select id="reconstructHead" class="coord-input">
-                                                        <option value="CAR1">ROBOT#1</option>
-                                                        <option value="CAR2">ROBOT#2</option>
-                                                        <option value="CAR3">ROBOT#3</option>
-                                                        <option value="CAR4">ROBOT#4</option>
-                                                    </select>
-                                                </div>
-                                                <div>
-                                                    <label>MID2</label>
-                                                    <select id="reconstructMid2" class="coord-input">
-                                                        <option value="CAR1">ROBOT#1</option>
-                                                        <option value="CAR2">ROBOT#2</option>
-                                                        <option value="CAR3">ROBOT#3</option>
-                                                        <option value="CAR4">ROBOT#4</option>
-                                                    </select>
-                                                </div>
-                                                <div>
-                                                    <label>MID3</label>
-                                                    <select id="reconstructMid3" class="coord-input">
-                                                        <option value="CAR1">ROBOT#1</option>
-                                                        <option value="CAR2">ROBOT#2</option>
-                                                        <option value="CAR3">ROBOT#3</option>
-                                                        <option value="CAR4">ROBOT#4</option>
-                                                    </select>
-                                                </div>
-                                                <div>
-                                                    <label>TAIL</label>
-                                                    <select id="reconstructTail" class="coord-input">
-                                                        <option value="CAR1">ROBOT#1</option>
-                                                        <option value="CAR2">ROBOT#2</option>
-                                                        <option value="CAR3">ROBOT#3</option>
-                                                        <option value="CAR4">ROBOT#4</option>
-                                                    </select>
-                                                </div>
+                                            <h3>拼接顺序 (拖拽调整)</h3>
+                                            <div class="reconstruct-order-list" id="reconstructOrderList"></div>
+                                            <div class="broadcast-controls" style="margin-top: 6px;">
+                                                <button class="broadcast-btn broadcast-on" onclick="addReconstructItem()">添加小车</button>
+                                                <button class="broadcast-btn broadcast-off" onclick="applyDefaultReconstructOrder()">默认顺序</button>
                                             </div>
-                                            <button class="action-btn" onclick="applyDefaultReconstructOrder()" style="margin-top: 6px;">默认顺序 CAR1→CAR4</button>
                                             <div class="broadcast-controls" style="margin-top: 8px;">
                                                 <button class="broadcast-btn broadcast-on" onclick="startReconstruct()">启动重构</button>
                                                 <button class="broadcast-btn broadcast-off" onclick="separateReconstruct()">结束重构</button>
@@ -1561,19 +1582,18 @@
                                         </div>
 
                                         <div class="control-section">
-                                            <h3>实时图像</h3>
-                                            <div class="image-display" id="reconstructImageContainer" style="display: none;">
-                                                <div class="image-header">
-                                                    <span id="imageCarId">-</span>
-                                                    <span id="imageTimestamp" style="font-size: 10px; color: var(--text-1);">-</span>
-                                                </div>
-                                                <img id="reconstructImage" src="" alt="重构图像" style="width: 100%; max-height: 200px; object-fit: contain; border-radius: 4px; border: 1px solid var(--line-1);">
-                                                <div class="image-info" id="imageInfo" style="font-size: 10px; color: var(--text-1); margin-top: 4px;">
-                                                    等待图像数据...
+                                            <h3>视觉监控</h3>
+                                            <div style="display: grid; gap: 8px;">
+                                                <select id="visionMonitorSelector" class="coord-input">
+                                                    <option value="">-- 选择小车 --</option>
+                                                </select>
+                                                <div class="broadcast-controls">
+                                                    <button class="broadcast-btn broadcast-on" onclick="openVisionMonitor()">打开监控</button>
+                                                    <button class="broadcast-btn broadcast-off" onclick="scanVisionDevices()">重新扫描</button>
                                                 </div>
                                             </div>
-                                            <div id="noImageMessage" style="font-size: 12px; color: var(--text-1); text-align: center; padding: 20px;">
-                                                重构过程中将显示小车摄像头画面
+                                            <div style="font-size: 10px; color: var(--text-1); margin-top: 6px;">
+                                                监控画面将以弹窗形式显示，不占用控制面板空间
                                             </div>
                                         </div>
 
@@ -1618,7 +1638,7 @@
                                                     <input type="number" id="heading" class="coord-input" placeholder="角度" min="0" max="360">
                                                 </div>
                                             </div>
-                                            <button class="action-btn" onclick="sendPositionCommand()">导航到指定位姿</button>
+                                            <button class="action-btn" onclick="sendPositionCommand()">导航到指定位置</button>
                                         </div>
                                         
                                         <div class="control-section" id="keyboardControlSection">
@@ -1667,8 +1687,8 @@
                                                     <div class="gamepad-visualizer" id="gamepadVisualizer" style="display: none;">
                                                         <div class="gamepad-body">
                                                             <div class="gamepad-row">
-                                                                <div>LB: 线速 -</div>
-                                                                <div>RB: 线速 +</div>
+                                                                <div>LB: 线速度 -</div>
+                                                                <div>RB: 线速度 +</div>
                                                             </div>
                                                             <div class="stick-row">
                                                                 <div class="stick-block">
@@ -1685,8 +1705,8 @@
                                                                 </div>
                                                             </div>
                                                             <div class="gamepad-row" style="margin-top: 6px;">
-                                                                <div>LT: 角速 -</div>
-                                                                <div>RT: 角速 +</div>
+                                                                <div>LT: 角速度 -</div>
+                                                                <div>RT: 角速度 +</div>
                                                             </div>
                                                             <div class="trigger-bars">
                                                                 <div class="trigger-bar"><div class="trigger-fill" id="triggerLeftFill"></div></div>
@@ -1824,12 +1844,6 @@
             </div>
             <canvas id="coordinateCanvas"></canvas>
             
-            <!-- 【全局视频流显示区域】 -->
-            <div style="background: rgba(0,0,0,0.5); padding: 10px; border-radius: 6px; margin: 10px; text-align: center; min-height: 200px; display: flex; align-items: center; justify-content: center;">
-                <img id="videoStream" src="" alt="实时视频流" style="max-width: 100%; max-height: 300px; border-radius: 6px; display: none;" />
-                <div id="videoStreamPlaceholder" style="color: rgba(255,255,255,0.5); font-size: 14px;">点击小车面板上的"开启画面"按钮查看视频流</div>
-            </div>
-            
             <div class="performance-info" id="performanceInfo">
                 更新频率: 300ms | 小车: <span id="carCount">0</span>
             </div>
@@ -1844,6 +1858,21 @@
         <h3 id="popupCarId">ROBOT#1</h3>
         <div class="popup-details" id="popupDetails">
             </div>
+    </div>
+
+    <div class="video-popup" id="videoStreamPopup">
+        <div class="video-popup-header" id="videoPopupHeader">
+            <span id="videoPopupTitle">视觉监控</span>
+            <button class="video-popup-close" id="videoPopupClose">×</button>
+        </div>
+        <div class="video-popup-body">
+            <img id="videoPopupImage" src="" alt="视觉监控画面">
+            <div class="video-popup-warning" id="videoPopupWarning"></div>
+            <div class="video-popup-overlay">
+                <span id="videoPopupError">X: 0.0cm | Y: 0.0cm | Yaw: 0.0°</span>
+                <span id="videoPopupCar">-</span>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -1963,6 +1992,9 @@
             isEditingOffsets: false,
             offsetsDirty: false
         };
+        let lastReconstructPhase = null;
+        let visionPopupDismissed = false;
+        let visionLastTimestamp = 0;
 
         // 初始化队形预览画布
         function initFormationPreview() {
@@ -2277,7 +2309,7 @@
             });
             
             document.getElementById('formationPreviewInfo').textContent = 
-                `${getFormationName(formationType)}队形 - 领航车: ${leaderId.replace('CAR', 'ROBOT#')}`;
+                `${getFormationName(formationType)}队形 - 领航者: ${leaderId.replace('CAR', 'ROBOT#')}`;
         }
 
         function getFormationName(formationType) {
@@ -2637,6 +2669,7 @@
                 updateCarList();
                 renderFrame();
                 updateCarSelector();
+                updateVisionSelector();
                 refreshReconstructSelectors();
                 updatePerformanceInfo(cars.length, endTime - startTime);
 
@@ -2669,7 +2702,7 @@
             }
         }
 
-        // ==================== 彻底修复的 updateCarList 函数 ====================
+        // ==================== 彻底修复版 updateCarList 函数 ====================
         function updateCarList() {
             const carListElement = document.getElementById('carList');
             if (cars.length === 0) {
@@ -2706,22 +2739,6 @@
                                 <span class="detail-label">电量</span>
                                 <span class="detail-value">${car.battery.toFixed(1)}V</span>
                             </div>
-                        </div>
-                        
-                        <!-- 视频流控制按钮 -->
-                        <div class="video-stream-controls" onclick="event.stopPropagation()">
-                            <button class="stream-btn stream-btn-start" onclick="startVideoStream('${car.id}')" ${!car.connected ? 'disabled' : ''}>
-                                📹 开启画面
-                            </button>
-                            <button class="stream-btn stream-btn-stop" onclick="stopVideoStream('${car.id}')" ${!car.connected ? 'disabled' : ''}>
-                                ⏹️ 关闭画面
-                            </button>
-                        </div>
-                        
-                        <!-- 视频流显示区域 -->
-                        <div class="video-stream-frame" id="videoFrame-${car.id}">
-                            <img id="videoStream-${car.id}" src="" alt="视频流" />
-                            <div class="video-stream-status">正在接收画面...</div>
                         </div>
                         
                         <button class="save-dot" type="button" title="位姿保存" aria-label="位姿保存" onclick="toggleSaveMenu('${car.id}', event)"></button>
@@ -2792,61 +2809,6 @@
             }
         }
 
-        // ===== 视频流函数 =====
-        async function startVideoStream(carId) {
-            try {
-                const response = await fetch('/api/stream/toggle', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ car_id: carId, enable: true })
-                });
-
-                const result = await response.json();
-                if (result.success) {
-                    showMessage(`已请求开启 ${carId} 的视频流`, 'success');
-                    // 【极其关键】强制执行拉流动作 - 这是前端缺失的致命逻辑
-                    const videoStream = document.getElementById('videoStream');
-                    const placeholder = document.getElementById('videoStreamPlaceholder');
-                    videoStream.src = "/api/stream/feed/" + carId + "?t=" + new Date().getTime();
-                    videoStream.style.display = 'block';
-                    if (placeholder) placeholder.style.display = 'none';
-                    console.log(`[视频流] 已设置拉流: /api/stream/feed/${carId}`);
-                } else {
-                    showMessage(`视频流开启失败: ${result.error}`, 'error');
-                }
-            } catch (error) {
-                console.error('开启视频流失败:', error);
-                showMessage('开启视频流失败', 'error');
-            }
-        }
-
-        async function stopVideoStream(carId) {
-            try {
-                const response = await fetch('/api/stream/toggle', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ car_id: carId, enable: false })
-                });
-
-                const result = await response.json();
-                if (result.success) {
-                    showMessage(`已请求关闭 ${carId} 的视频流`, 'success');
-                    // 【极其关键】强制执行停止拉流 - 清空src并显示placeholder
-                    const videoStream = document.getElementById('videoStream');
-                    const placeholder = document.getElementById('videoStreamPlaceholder');
-                    videoStream.src = "";
-                    videoStream.style.display = 'none';
-                    if (placeholder) placeholder.style.display = 'block';
-                    console.log(`[视频流] 已停止拉流`);
-                } else {
-                    showMessage(`视频流关闭失败: ${result.error}`, 'error');
-                }
-            } catch (error) {
-                console.error('关闭视频流失败:', error);
-                showMessage('关闭视频流失败', 'error');
-            }
-        }
-
         function updateCarSelector() {
             const selector = document.getElementById('carSelector');
             const currentSelection = selector.value;
@@ -2862,6 +2824,164 @@
                     selector.value = firstConnected.id;
                     selectedCarId = firstConnected.id;
                 }
+            }
+        }
+
+        function updateVisionSelector() {
+            const selector = document.getElementById('visionMonitorSelector');
+            if (!selector) return;
+            const current = selector.value;
+            const options = cars.filter(car => car.connected).map(car =>
+                `<option value="${car.id}">${car.id.replace('CAR', 'ROBOT#')}</option>`
+            ).join('');
+            selector.innerHTML = '<option value="">-- 选择小车 --</option>' + options;
+            if (current && selector.querySelector(`option[value="${current}"]`)) {
+                selector.value = current;
+            }
+        }
+
+        function setPopupVisible(visible) {
+            const popup = document.getElementById('videoStreamPopup');
+            if (!popup) return;
+            popup.classList.toggle('visible', visible);
+        }
+
+        function initVisionPopup() {
+            const popup = document.getElementById('videoStreamPopup');
+            const header = document.getElementById('videoPopupHeader');
+            const closeBtn = document.getElementById('videoPopupClose');
+            if (!popup || !header || !closeBtn) return;
+
+            let dragging = false;
+            let offsetX = 0;
+            let offsetY = 0;
+
+            header.addEventListener('mousedown', (event) => {
+                dragging = true;
+                const rect = popup.getBoundingClientRect();
+                offsetX = event.clientX - rect.left;
+                offsetY = event.clientY - rect.top;
+            });
+
+            window.addEventListener('mousemove', (event) => {
+                if (!dragging) return;
+                const maxX = window.innerWidth - popup.offsetWidth;
+                const maxY = window.innerHeight - popup.offsetHeight;
+                const nextLeft = Math.min(Math.max(0, event.clientX - offsetX), Math.max(0, maxX));
+                const nextTop = Math.min(Math.max(0, event.clientY - offsetY), Math.max(0, maxY));
+                popup.style.left = `${nextLeft}px`;
+                popup.style.top = `${nextTop}px`;
+            });
+
+            window.addEventListener('mouseup', () => {
+                dragging = false;
+            });
+
+            closeBtn.addEventListener('click', () => {
+                visionPopupDismissed = true;
+                setPopupVisible(false);
+            });
+        }
+
+        async function openVisionMonitor() {
+            const selector = document.getElementById('visionMonitorSelector');
+            const carId = selector ? selector.value : '';
+            if (!carId) {
+                showMessage('请选择要监控的小车', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/vision/select', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ car_id: carId })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    visionPopupDismissed = false;
+                    setPopupVisible(true);
+                    showMessage(`已请求 ${carId.replace('CAR', 'ROBOT#')} 监控`, 'success');
+                }
+            } catch (error) {
+                console.error('打开监控失败:', error);
+                showMessage('打开监控失败', 'error');
+            }
+        }
+
+        async function scanVisionDevices() {
+            try {
+                const response = await fetch('/api/vision/bind/scan', {
+                    method: 'POST'
+                });
+                const result = await response.json();
+                if (result.success) {
+                    showMessage('已开始重新扫描摄像头', 'success');
+                } else {
+                    showMessage('扫描请求失败', 'error');
+                }
+            } catch (error) {
+                console.error('扫描摄像头失败:', error);
+                showMessage('扫描摄像头失败', 'error');
+            }
+        }
+
+        async function fetchVisionImage() {
+            try {
+                const response = await fetch('/api/vision/image');
+                const data = await response.json();
+                if (!data.success || !data.image) {
+                    if (data.warning) {
+                        const warningEl = document.getElementById('videoPopupWarning');
+                        if (warningEl) {
+                            warningEl.textContent = data.warning;
+                            warningEl.style.display = 'block';
+                        }
+                    }
+                    return;
+                }
+
+                if (data.timestamp && data.timestamp <= visionLastTimestamp) {
+                    return;
+                }
+                visionLastTimestamp = data.timestamp || 0;
+
+                const imageEl = document.getElementById('videoPopupImage');
+                const errorEl = document.getElementById('videoPopupError');
+                const carEl = document.getElementById('videoPopupCar');
+                const titleEl = document.getElementById('videoPopupTitle');
+                const warningEl = document.getElementById('videoPopupWarning');
+
+                if (imageEl) {
+                    imageEl.src = `data:image/jpeg;base64,${data.image}`;
+                }
+
+                const error = Array.isArray(data.error) ? data.error : [0, 0, 0];
+                const x = Number(error[0] || 0).toFixed(1);
+                const y = Number(error[1] || 0).toFixed(1);
+                const yaw = Number(error[2] || 0).toFixed(1);
+                if (errorEl) {
+                    errorEl.textContent = `X: ${x}cm | Y: ${y}cm | Yaw: ${yaw}°`;
+                }
+
+                const carId = data.car_id ? data.car_id.replace('CAR', 'ROBOT#') : '-';
+                if (carEl) {
+                    carEl.textContent = carId;
+                }
+                if (titleEl) {
+                    titleEl.textContent = carId && carId !== '-' ? `${carId} 视觉监控` : '视觉监控';
+                }
+
+                if (warningEl) {
+                    if (data.warning) {
+                        warningEl.textContent = data.warning;
+                        warningEl.style.display = 'block';
+                    } else {
+                        warningEl.style.display = 'none';
+                    }
+                }
+            } catch (error) {
+                console.error('获取视觉图像失败:', error);
             }
         }
 
@@ -3317,13 +3437,54 @@
             }
         }
 
+        function buildReconstructOptions(selectedId = '') {
+            const connectedCars = cars.filter(car => car.connected).map(car => car.id);
+            const options = connectedCars.map(carId => {
+                const label = carId.replace('CAR', 'ROBOT#');
+                const selected = carId === selectedId ? 'selected' : '';
+                return `<option value="${carId}" ${selected}>${label}</option>`;
+            }).join('');
+            return `<option value="">-- 选择小车 --</option>${options}`;
+        }
+
+        function addReconstructItem(initialCarId = '') {
+            const list = document.getElementById('reconstructOrderList');
+            if (!list) return;
+
+            const item = document.createElement('div');
+            item.className = 'order-item';
+            item.draggable = true;
+
+            item.innerHTML = `
+                <div class="order-handle" title="拖拽调整">⋮⋮</div>
+                <select class="coord-input">${buildReconstructOptions(initialCarId)}</select>
+                <button class="order-remove" title="移除">×</button>
+            `;
+
+            const removeBtn = item.querySelector('.order-remove');
+            removeBtn.addEventListener('click', (event) => {
+                event.preventDefault();
+                item.remove();
+            });
+
+            item.addEventListener('dragstart', () => {
+                item.classList.add('dragging');
+            });
+            item.addEventListener('dragend', () => {
+                item.classList.remove('dragging');
+            });
+
+            list.appendChild(item);
+            return item;
+        }
+
         function getReconstructOrder() {
-            return [
-                document.getElementById('reconstructHead').value,
-                document.getElementById('reconstructMid2').value,
-                document.getElementById('reconstructMid3').value,
-                document.getElementById('reconstructTail').value
-            ];
+            const list = document.getElementById('reconstructOrderList');
+            if (!list) return [];
+            const selectors = list.querySelectorAll('select');
+            return Array.from(selectors)
+                .map(select => select.value)
+                .filter(value => value);
         }
 
         function orderHasDuplicates(order) {
@@ -3331,21 +3492,51 @@
         }
 
         function applyDefaultReconstructOrder() {
-            const defaults = [
-                document.getElementById('reconstructHead'),
-                document.getElementById('reconstructMid2'),
-                document.getElementById('reconstructMid3'),
-                document.getElementById('reconstructTail')
-            ];
-            const order = ['CAR1', 'CAR2', 'CAR3', 'CAR4'];
-            defaults.forEach((selector, index) => {
-                if (!selector) return;
-                selector.value = order[index];
+            const connectedCars = cars.filter(car => car.connected).map(car => car.id);
+            const defaults = connectedCars.length ? connectedCars : ['CAR1', 'CAR2', 'CAR3', 'CAR4'];
+            const list = document.getElementById('reconstructOrderList');
+            if (!list) return;
+            list.innerHTML = '';
+            defaults.forEach(carId => addReconstructItem(carId));
+            wireReconstructDrag();
+        }
+
+        function wireReconstructDrag() {
+            const list = document.getElementById('reconstructOrderList');
+            if (!list || list.dataset.dragWired === '1') return;
+            list.dataset.dragWired = '1';
+
+            list.addEventListener('dragover', (event) => {
+                event.preventDefault();
+                const dragging = list.querySelector('.order-item.dragging');
+                if (!dragging) return;
+                const afterElement = getDragAfterElement(list, event.clientY);
+                if (!afterElement) {
+                    list.appendChild(dragging);
+                } else {
+                    list.insertBefore(dragging, afterElement);
+                }
             });
+        }
+
+        function getDragAfterElement(container, y) {
+            const elements = [...container.querySelectorAll('.order-item:not(.dragging)')];
+            return elements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset, element: child };
+                }
+                return closest;
+            }, { offset: Number.NEGATIVE_INFINITY, element: null }).element;
         }
 
         async function startReconstruct() {
             const order = getReconstructOrder();
+            if (order.length === 0) {
+                showMessage('请先添加要重构的小车', 'error');
+                return;
+            }
             if (orderHasDuplicates(order)) {
                 showMessage('重构顺序包含重复小车，请检查', 'error');
                 return;
@@ -3360,6 +3551,8 @@
                 const result = await response.json();
                 if (result.success) {
                     showMessage(result.message, 'success');
+                    visionPopupDismissed = false;
+                    setPopupVisible(true);
                     getReconstructStatus();
                 } else {
                     showMessage(result.error, 'error');
@@ -3456,55 +3649,19 @@
                     errorEl.textContent = status.last_error ? status.last_error : '-';
                 }
 
-                // 更新图像显示和日志
-                updateReconstructImage(status);
+                const isReconstructing = status.phase === 'preparing' || status.phase === 'assembling';
+                if ((lastReconstructPhase !== status.phase) && isReconstructing) {
+                    visionPopupDismissed = false;
+                }
+                if (isReconstructing && !visionPopupDismissed) {
+                    setPopupVisible(true);
+                }
+                lastReconstructPhase = status.phase;
+
                 updateReconstructLogs(status);
                 
             } catch (error) {
                 console.error('获取重构状态失败:', error);
-            }
-        }
-
-        // 更新重构图像显示
-        async function updateReconstructImage(status) {
-            try {
-                const imageContainer = document.getElementById('reconstructImageContainer');
-                const noImageMessage = document.getElementById('noImageMessage');
-                
-                if (status.current_image_car && status.active) {
-                    // 获取图像数据
-                    const response = await fetch('/api/reconstruct/image');
-                    const imageData = await response.json();
-                    
-                    if (imageData.success && imageData.image) {
-                        const imageEl = document.getElementById('reconstructImage');
-                        const carIdEl = document.getElementById('imageCarId');
-                        const timestampEl = document.getElementById('imageTimestamp');
-                        const infoEl = document.getElementById('imageInfo');
-                        
-                        imageEl.src = `data:image/jpeg;base64,${imageData.image}`;
-                        carIdEl.textContent = imageData.car_id.replace('CAR', 'R#');
-                        
-                        // 格式化时间戳
-                        const timestamp = new Date(imageData.timestamp * 1000);
-                        timestampEl.textContent = timestamp.toLocaleTimeString();
-                        
-                        infoEl.textContent = `AprilTag检测 - 实时制导`;
-                        
-                        imageContainer.style.display = 'block';
-                        noImageMessage.style.display = 'none';
-                    } else {
-                        imageContainer.style.display = 'none';
-                        noImageMessage.style.display = 'block';
-                        noImageMessage.textContent = '等待图像数据...';
-                    }
-                } else {
-                    imageContainer.style.display = 'none';
-                    noImageMessage.style.display = 'block';
-                    noImageMessage.textContent = status.active ? '等待小车发送图像...' : '重构过程中将显示小车摄像头画面';
-                }
-            } catch (error) {
-                console.error('更新重构图像失败:', error);
             }
         }
 
@@ -3539,23 +3696,18 @@
         }
 
         function refreshReconstructSelectors() {
-            const selectors = [
-                document.getElementById('reconstructHead'),
-                document.getElementById('reconstructMid2'),
-                document.getElementById('reconstructMid3'),
-                document.getElementById('reconstructTail')
-            ];
-
-            const connectedCars = cars.filter(car => car.connected).map(car => car.id);
-            if (connectedCars.length === 0) return;
+            const list = document.getElementById('reconstructOrderList');
+            if (!list) return;
+            const selectors = list.querySelectorAll('select');
+            if (selectors.length === 0) {
+                applyDefaultReconstructOrder();
+                return;
+            }
 
             selectors.forEach(selector => {
-                if (!selector) return;
                 const current = selector.value;
-                selector.innerHTML = connectedCars
-                    .map(carId => `<option value="${carId}">${carId.replace('CAR', 'ROBOT#')}</option>`)
-                    .join('');
-                if (connectedCars.includes(current)) {
+                selector.innerHTML = buildReconstructOptions(current);
+                if (current) {
                     selector.value = current;
                 }
             });
@@ -3567,7 +3719,7 @@
             const dySection = document.getElementById('dynamicAdjustSection');
             const rcTitle = document.getElementById('rcTitle'); 
             
-            // 【修复核心 1】：记录当前界面上的状态，用来判断我们是否是“刚刚退出编队”
+            // 【修复核心 1】：记录当前界面上的状态，用来判断我们是否是“刚刚退出编队状态”
             const wasInFormation = statusElement.innerText.includes('编队');
             
             // 获取单车控制区域的输入框和按钮
@@ -3575,7 +3727,7 @@
             const singleCarBtn = document.querySelector('#carControlSection .action-btn');
 
             if (enabled) {
-                statusElement.innerHTML = `状态: <span style="color: #2f7f6f;">编队中</span> - 领航车: ${leaderId.replace('CAR', 'ROBOT#')}, 队形: ${formationType}`;
+                statusElement.innerHTML = `状态: <span style="color: #2f7f6f;">编队中</span> - 领航者: ${leaderId.replace('CAR', 'ROBOT#')}, 队形: ${formationType}`;
                 if(dySection) dySection.style.display = 'block';
                 
                 // 编队启动：禁用单车位置控制和选择
@@ -3691,6 +3843,7 @@
 
         document.addEventListener('DOMContentLoaded', function() {
             initCoordinateMap();
+            initVisionPopup();
             checkNetworkStatus();
             fetchCars();
             setInterval(fetchCars, 150);
@@ -3706,6 +3859,8 @@
             setInterval(getTopologyStatus, 5000);
             getReconstructStatus();
             setInterval(getReconstructStatus, 500);
+            setInterval(fetchVisionImage, 100);
+            applyDefaultReconstructOrder();
 
             canvas.addEventListener('click', function(e) {
                 const rect = canvas.getBoundingClientRect();

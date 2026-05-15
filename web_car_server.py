@@ -14,6 +14,18 @@ import gzip
 from datetime import datetime
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
+# 本地视觉引擎
+VISION_MODULE_DIR = os.path.join(os.path.dirname(__file__), "Car_vision_system")
+if VISION_MODULE_DIR not in sys.path:
+    sys.path.append(VISION_MODULE_DIR)
+
+try:
+    from car_vision_system import DeviceBinder, PoseEstimator, CONFIG as VISION_CONFIG
+except Exception as e:
+    DeviceBinder = None
+    PoseEstimator = None
+    VISION_CONFIG = {}
+    print(f"⚠️ 本地视觉模块导入失败: {e}")
 # 增加导入 get_formation_info
 from formation_controller import formation_bp, init_formation_controller, get_formation_info
 
@@ -62,10 +74,13 @@ reconstruct_state = {
     "guide_controllers": {},
     "guide_frequency": 20,  # Hz
     "guide_timeout": 0.3,   # 秒
-    "target_distance": 0.05, # 5cm
+    "target_distance": 5.0, # 5cm
     "current_image": None,   # 当前显示的图像
     "current_image_car": None, # 当前图像对应的小车
     "image_timestamp": 0,    # 图像时间戳
+    "current_error": None,   # 当前误差 (x, y, yaw)
+    "current_error_car": None,
+    "current_has_tag": False,
     "debug_logs": []         # 调试日志
     ,"prep_waiting": {}
     ,"events": {}
@@ -75,17 +90,6 @@ reconstruct_state = {
 
 RECONSTRUCT_POS_LABELS = ["HEAD", "MID2", "MID3", "TAIL"]
 MAX_RECONSTRUCT_EVENTS = 120
-reconstruct_image_sessions = {}
-
-# AprilTag 检测器
-TAG_DETECTOR = cv2.aruco.ArucoDetector(
-    cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_APRILTAG_36h11),
-    cv2.aruco.DetectorParameters()
-)
-
-# 图像重组超时（毫秒）
-IMAGE_REASSEMBLE_TIMEOUT = 400
-IMAGE_SESSION_WINDOW_PER_CAR = 3
 
 # PREP 重试策略（秒）
 PREP_RETRY_TIMEOUT = 3.0
@@ -101,8 +105,9 @@ ASM_STAGGER_WAIT_GRACE = 2.5
 
 # 末端制导参数
 GUIDE_SPEED_LIMIT = 0.15  # m/s
-GUIDE_P_GAIN_X = 0.5
-GUIDE_P_GAIN_Y = 0.5
+# 误差输入单位为 cm，因此增益按 cm 缩放
+GUIDE_P_GAIN_X = 0.005
+GUIDE_P_GAIN_Y = 0.005
 GUIDE_P_GAIN_YAW = 0.3
 
 # AprilTag参数
@@ -289,146 +294,6 @@ def _normalize_car_address(addr):
         return addr
     return (addr[0], CAR_COMMAND_PORT)
 
-class ImageReassemblySession:
-    """图像重组会话"""
-    def __init__(self, car_id, seq, width, height, format_id, total_length):
-        self.car_id = car_id
-        self.seq = seq
-        self.width = width
-        self.height = height
-        self.format_id = format_id
-        self.total_length = total_length
-        self.chunks = {}
-        self.total_chunks = 0
-        self.start_time = time.time()
-        self.completed = False
-        
-    def add_chunk(self, chunk_idx, chunk_data):
-        """添加图像分片"""
-        self.chunks[chunk_idx] = chunk_data
-        
-    def is_complete(self):
-        """检查是否完成重组"""
-        return len(self.chunks) == self.total_chunks and self.total_chunks > 0
-        
-    def reassemble_image(self):
-        """重组图像"""
-        if not self.is_complete():
-            return None
-        
-        # 按索引排序并拼接
-        sorted_indices = sorted(self.chunks.keys())
-
-        # 检查索引是否连续从0到total_chunks-1（车端0-based）
-        try:
-            expected = list(range(0, self.total_chunks))
-            if sorted_indices != expected:
-                print(f"⚠️ 分片索引不连续: {sorted_indices} vs expected {expected}")
-                return None
-        except Exception:
-            pass
-        image_data = b''.join(self.chunks[idx] for idx in sorted_indices)
-        
-        if len(image_data) != self.total_length:
-            print(f"⚠️ 图像数据长度不匹配: {len(image_data)} != {self.total_length}")
-            return None
-            
-        return image_data
-        
-    def is_timed_out(self):
-        """检查是否超时"""
-        return (time.time() - self.start_time) * 1000 > IMAGE_REASSEMBLE_TIMEOUT
-
-
-class VideoStreamManager:
-    """高度模块化的视频流管理器"""
-    def __init__(self):
-        self.stream_sessions = {}  # {car_id: ImageReassemblySession}
-        self.latest_frames = {}    # {car_id: binary_jpeg_data}
-        self.stream_enabled = {}   # {car_id: bool}
-        self.lock = threading.RLock()
-        self.stream_timeout = 500  # 毫秒，同步IMAGE_REASSEMBLE_TIMEOUT
-        self.session_window_per_car = 3
-        self.sessions = {}
-    
-    def handle_meta(self, car_id, seq, width, height, format_id, total_len):
-        """处理图传元数据"""
-        try:
-            print(f"📷 [UDP流] 收到元数据: 小车={car_id}, 序列号={seq}, 尺寸={total_len}字节")
-            session = ImageReassemblySession(car_id, seq, width, height, format_id, total_len)
-            with self.lock:
-                self.stream_sessions[car_id] = session
-            return True
-        except Exception as e:
-            print(f"❌ 处理VideoStream元数据失败 ({car_id}): {e}")
-            return False
-    
-    def handle_chunk(self, car_id, seq, idx, tot, size, payload):
-        if idx == 0 or idx == "0":
-            print(f"📦 [UDP流] 收到首片数据: 小车={car_id}, 序列号={seq}")
-            
-        session_key = (car_id, seq)
-        with self.lock:
-            if session_key not in self.sessions:
-                self.sessions[session_key] = {
-                    'total_chunks': int(tot),
-                    'chunks': {},
-                    'start_time': time.time()
-                }
-                
-            session = self.sessions[session_key]
-            
-            # 强制将索引转为整数，并存入二进制 payload
-            session['chunks'][int(idx)] = payload
-            session['total_chunks'] = int(tot)
-            
-            # 判断是否收集齐了所有分片
-            if len(session['chunks']) >= session['total_chunks']:
-                try:
-                    # 暴力稳健法：把字典里所有的分片按照索引从小到大排序，然后全部拼接起来！
-                    sorted_chunks = [session['chunks'][k] for k in sorted(session['chunks'].keys())]
-                    image_data = b''.join(sorted_chunks)
-                    
-                    self.latest_frames[car_id] = image_data
-                    print(f"✅ [重组层] 图像拼装完成! 小车={car_id}, 字节={len(image_data)}")
-                except Exception as e:
-                    print(f"❌ 图像拼接失败: {e}")
-                
-                del self.sessions[session_key]
-    
-    def get_latest_frame(self, car_id):
-        """获取最新一帧JPEG二进制数据"""
-        with self.lock:
-            return self.latest_frames.get(car_id)
-    
-    def request_stream(self, car_id, enable, udp_server):
-        """向小车请求开启或关闭视频流"""
-        try:
-            with self.lock:
-                self.stream_enabled[car_id] = enable
-            
-            if enable:               
-                cmd = f"[V,START,{car_id}]"
-                print(f"📹 请求开启视频流: {car_id}")
-            else:                
-                cmd = f"[V,STOP,{car_id}]"
-                print(f"⏹️ 请求关闭视频流: {car_id}")
-            
-            # 通过UDP服务器发送命令
-            if udp_server:
-                udp_server.send_to_car(car_id, cmd)
-                return True
-            return False
-        except Exception as e:
-            print(f"❌ 视频流请求失败 ({car_id}): {e}")
-            return False
-    
-    def is_stream_enabled(self, car_id):
-        """查询某小车的流状态"""
-        with self.lock:
-            return self.stream_enabled.get(car_id, False)
-
-
 class GuideController:
     """末端制导控制器"""
     def __init__(self, car_id):
@@ -474,6 +339,7 @@ class GuideController:
                 if done == 1:
                     self.target_reached = True
                     self.active = False
+                    _advance_reconstruct_assembly(self.car_id)
                     break
                     
                 time.sleep(guide_interval)
@@ -490,9 +356,7 @@ class GuideController:
         error_x, error_y, error_yaw = self.last_pose_error
         
         # 检查是否到达目标
-        target_distance = reconstruct_state["target_distance"]
-        if (abs(error_x) < 0.01 and abs(error_y) < 0.01 and 
-            abs(error_yaw) < 0.1 and error_x > -target_distance):
+        if (abs(error_x) < 5.0 and abs(error_y) < 5.0 and abs(error_yaw) < 0.1):
             return 0, 0, 0, 1  # 目标到达
             
         # PID控制（简化版，只有P项）
@@ -634,9 +498,6 @@ class UDPServer:
             health_thread = threading.Thread(target=self._health_check_loop, daemon=True)
             health_thread.start()
 
-            image_cleanup_thread = threading.Thread(target=self._image_session_cleanup_loop, daemon=True)
-            image_cleanup_thread.start()
-
             # PREP 监控守护线程：检查未返回 PREP_OK 的车辆并按策略重试 PREP/ORDER
             prep_watchdog_thread = threading.Thread(target=self._prep_watchdog_loop, daemon=True)
             prep_watchdog_thread.start()
@@ -669,75 +530,6 @@ class UDPServer:
     def _handle_car_data(self, data, addr):
         try:
             car_id = None
-            
-            # =====================================================
-            # 【二进制防乱码拦截】在任何.decode()之前进行
-            # =====================================================
-            if isinstance(data, bytes):
-                # 【V,META】元数据拦截（新协议）：[V,META,CARx,seq,total_len]
-                if b'[V,META' in data:
-                    try:
-                        # META 可能是纯文本包，也可能带换行；统一先截取文本头
-                        header_end = data.find(b'\n')
-                        header_bytes = data[:header_end] if header_end > 0 else data
-                        header_text = header_bytes.decode('utf-8', errors='ignore').strip()
-                        if header_text.startswith('[') and header_text.endswith(']'):
-                            content = header_text[1:-1]  # 去掉[和]
-                            parts = [p.strip() for p in content.split(',')]
-                            # 期望: [V, META, car_id, seq, total_len]
-                            if len(parts) >= 5 and parts[0] == 'V' and parts[1] == 'META':
-                                car_id = parts[2]
-                                seq = int(parts[3])
-                                total_len = int(parts[4])
-
-                                # 新协议不携带宽高和格式，使用默认占位
-                                video_manager.handle_meta(car_id, seq, 0, 0, 0, total_len)
-
-                                # 更新 car 最后活动时间（续命）
-                                current_time = time.time()
-                                with car_lock:
-                                    if car_id in cars:
-                                        cars[car_id].last_update = current_time
-                                        cars[car_id].connected = True
-                                return  # 阻止后续处理
-                    except Exception as e:
-                        print(f"⚠️ VideoStream元数据解析异常: {e}")
-                        return
-                
-                # 【V,CHUNK】分片数据拦截（新协议）：[V,CHUNK,CARx,seq,idx,tot,sz]\n<binary_data>
-                if b'[V,CHUNK' in data and b'\n' in data:
-                    header_end = data.find(b'\n')
-                    if header_end > 0:
-                        header_bytes = data[:header_end]
-                        binary_payload = data[header_end + 1:]
-                        header_text = header_bytes.decode('utf-8', errors='ignore').strip()
-                        if header_text.startswith('[') and header_text.endswith(']'):
-                            try:
-                                content = header_text[1:-1]  # 去掉[和]
-                                parts = [p.strip() for p in content.split(',')]
-                                # 期望: [V, CHUNK, car_id, seq, idx, tot, sz]
-                                if len(parts) >= 7 and parts[0] == 'V' and parts[1] == 'CHUNK':
-                                    car_id = parts[2]
-                                    seq = int(parts[3])
-                                    chunk_idx = int(parts[4])
-                                    total_chunks = int(parts[5])
-                                    chunk_size = int(parts[6])
-
-                                    # 通过 video_manager 处理分片（严禁对 JPEG 数据做 UTF-8 解码）
-                                    video_manager.handle_chunk(car_id, seq, chunk_idx, total_chunks,
-                                                               chunk_size, binary_payload)
-
-                                    # 更新 car 最后活动时间（续命）
-                                    current_time = time.time()
-                                    with car_lock:
-                                        if car_id in cars:
-                                            cars[car_id].last_update = current_time
-                                            cars[car_id].connected = True
-                                    # 【关键】绝对阻止后续处理，防止对二进制数据的错误处理
-                                    return
-                            except Exception as e:
-                                print(f"⚠️ VideoStream分片解析异常: {e}")
-                                return
             
             # =====================================================
             # 以下是原有的重构和遥测数据处理逻辑
@@ -1002,31 +794,6 @@ class UDPServer:
                 print(f"❌ 清理循环错误: {e}")
                 time.sleep(1.0)
 
-    def _image_session_cleanup_loop(self):
-        """清理超时的图像重组会话"""
-        while self.running:
-            try:
-                timeout_sessions = []
-
-                with reconstruct_lock:
-                    # 检查所有图像会话是否超时
-                    for session_key, session in list(reconstruct_image_sessions.items()):
-                        if session.is_timed_out():
-                            timeout_sessions.append(session_key)
-
-                    # 清理超时会话
-                    for session_key in timeout_sessions:
-                        reconstruct_image_sessions.pop(session_key, None)
-
-                for car_id, seq in timeout_sessions:
-                    print(f"🗑️ 清理超时图像会话: {car_id} seq={seq}")
-
-                time.sleep(0.2)  # 提高清理频率，避免旧帧阻塞窗口
-                
-            except Exception as e:
-                print(f"❌ 图像会话清理错误: {e}")
-                time.sleep(1.0)
-
     def _prep_watchdog_loop(self):
         """监控 PREP 阶段，处理长时间未 PREP_OK 的车辆：先检查前车可见性，再重试 PREP 或重发 ORDER"""
         while self.running:
@@ -1203,10 +970,129 @@ class UDPServer:
             self.socket.close()
         self.broadcast_server.stop()
 
-# 初始化全局视频流管理器
-video_manager = VideoStreamManager()
+# 本地视觉状态
+vision_lock = threading.Lock()
+vision_state = {
+    "binder": None,
+    "estimator": None,
+    "bound_cameras": {},
+    "monitor_car_id": None,
+    "active_car_id": None,
+    "current_image": None,
+    "current_error": None,
+    "current_error_car": None,
+    "current_has_tag": False,
+    "image_timestamp": 0,
+    "last_warning": None,
+}
 
 udp_server = UDPServer(UDP_HOST, UDP_PORT)
+
+def _update_vision_snapshot(car_id, frame, error_tuple, has_tag):
+    try:
+        _, buffer = cv2.imencode('.jpg', frame)
+        image_base64 = base64.b64encode(buffer).decode('utf-8')
+    except Exception as e:
+        _log_reconstruct_event(f"图像编码失败 ({car_id}): {e}")
+        return
+
+    ts = time.time()
+    with vision_lock:
+        vision_state["current_image"] = image_base64
+        vision_state["current_error"] = error_tuple
+        vision_state["current_error_car"] = car_id
+        vision_state["current_has_tag"] = has_tag
+        vision_state["image_timestamp"] = ts
+
+    with reconstruct_lock:
+        reconstruct_state["current_image"] = image_base64
+        reconstruct_state["current_image_car"] = car_id
+        reconstruct_state["current_error"] = error_tuple
+        reconstruct_state["current_error_car"] = car_id
+        reconstruct_state["current_has_tag"] = has_tag
+        reconstruct_state["image_timestamp"] = ts
+
+def _mark_waiting_image_started(car_id):
+    with reconstruct_lock:
+        if reconstruct_state.get("phase") != "assembling":
+            return
+        if reconstruct_state.get("waiting_car_id") != car_id:
+            return
+        runtime = reconstruct_state.setdefault("step_runtime", {}).setdefault(car_id, _make_step_runtime())
+        if not runtime.get("image_started", False):
+            runtime["image_started"] = True
+            runtime["img_meta_ts"] = time.time()
+            reconstruct_state["subphase"] = "GUIDING"
+
+def _vision_loop():
+    cap = None
+    active_car = None
+
+    while True:
+        try:
+            with reconstruct_lock:
+                assembling = reconstruct_state.get("phase") == "assembling"
+                waiting_car = reconstruct_state.get("waiting_car_id")
+
+            with vision_lock:
+                monitor_car = vision_state.get("monitor_car_id")
+                bound_cameras = dict(vision_state.get("bound_cameras", {}))
+                binder = vision_state.get("binder")
+                estimator = vision_state.get("estimator")
+
+            target_car = waiting_car if assembling and waiting_car else monitor_car
+
+            if target_car != active_car:
+                if cap:
+                    cap.release()
+                    cap = None
+                active_car = target_car
+                with vision_lock:
+                    vision_state["active_car_id"] = active_car
+
+            if not target_car or not binder or not estimator:
+                time.sleep(0.1)
+                continue
+
+            cam_index = bound_cameras.get(target_car)
+            if cam_index is None:
+                with vision_lock:
+                    vision_state["last_warning"] = f"未绑定摄像头: {target_car}"
+                time.sleep(0.5)
+                continue
+
+            if cap is None:
+                cap = binder._open_camera(cam_index)
+                if not cap or not cap.isOpened():
+                    if cap:
+                        cap.release()
+                    cap = None
+                    with vision_lock:
+                        vision_state["last_warning"] = f"摄像头打开失败: {target_car} (USB {cam_index})"
+                    time.sleep(0.5)
+                    continue
+
+            ret, frame = cap.read()
+            if not ret or frame is None:
+                time.sleep(0.02)
+                continue
+
+            success, z_dist, x_offset, yaw_angle, out_frame = estimator.process_frame(frame, target_car)
+            error_x = float(x_offset) * 100.0 if success else 0.0
+            error_y = float(z_dist) * 100.0 if success else 0.0
+            error_yaw = float(yaw_angle) if success else 0.0
+
+            _update_vision_snapshot(target_car, out_frame, (error_x, error_y, error_yaw), success)
+            _mark_waiting_image_started(target_car)
+
+            if assembling and waiting_car == target_car and success:
+                _update_guide_controller(target_car, (error_x, error_y, error_yaw))
+
+            time.sleep(0.02)
+
+        except Exception as e:
+            _log_reconstruct_event(f"视觉线程错误: {e}")
+            time.sleep(0.1)
 
 def record_pose_sample(car_id, timestamp, x, y, yaw):
     with save_lock:
@@ -1298,6 +1184,8 @@ def _apply_topology(matrix, enable):
 def _build_reconstruct_topology(order):
     car_mapping = {"CAR1": 0, "CAR2": 1, "CAR3": 2, "CAR4": 3}
     matrix = [[0 for _ in range(4)] for _ in range(4)]
+    if not order or len(order) < 2:
+        return matrix
     for i in range(1, len(order)):
         source = order[i - 1]
         target = order[i]
@@ -1353,6 +1241,9 @@ def _reset_reconstruct_state():
         "current_image": None,
         "current_image_car": None,
         "image_timestamp": 0,
+        "current_error": None,
+        "current_error_car": None,
+        "current_has_tag": False,
         "debug_logs": []
     })
 
@@ -1453,271 +1344,32 @@ def _advance_reconstruct_separation(car_id):
         _log_reconstruct_event(f"小车 {car_id} 分离完成，开始下一辆: {order[next_index]}")
         _send_reconstruct_step(order[next_index], next_index, len(order), is_separation=True)
 
-def handle_image_meta(car_id, parts):
-    """处理图像元信息包"""
-    try:
+def _run_separation_sequence(order):
+    for idx in range(len(order) - 1, -1, -1):
+        car_id = order[idx]
         with reconstruct_lock:
-            if reconstruct_state.get("phase") == "assembling":
-                waiting_car = reconstruct_state.get("waiting_car_id")
-                if waiting_car and waiting_car != car_id:
-                    _log_reconstruct_event(f"忽略非当前车辆图像元信息: {car_id} (等待 {waiting_car})")
-                    return False
-                runtime = reconstruct_state.setdefault("step_runtime", {}).setdefault(car_id, _make_step_runtime())
-                if not runtime.get("image_started", False):
-                    runtime["image_started"] = True
-                    runtime["img_meta_ts"] = time.time()
-                    reconstruct_state["subphase"] = "GUIDING"
-                    _log_reconstruct_event(f"{car_id} 首帧 IMG_META 到达")
-        # 解析参数: [R,IMG_META,CARx,SEQ=时间戳,W=宽,H=高,FMT=格式编号,LEN=总字节]
-        params = {}
-        for part in parts[3:]:
-            if '=' in part:
-                key, value = part.split('=', 1)
-                params[key] = value
-        
-        seq = int(params.get('SEQ', 0))
-        width = int(params.get('W', 640))
-        height = int(params.get('H', 480))
-        format_id = int(params.get('FMT', 0))
-        total_length = int(params.get('LEN', 0))
-        
-        # 创建新的重组会话
-        session = ImageReassemblySession(car_id, seq, width, height, format_id, total_length)
-        session_key = (car_id, seq)
-        with reconstruct_lock:
-            reconstruct_image_sessions[session_key] = session
+            reconstruct_state["waiting_car_id"] = car_id
+            reconstruct_state["current_index"] = idx
+            reconstruct_state["subphase"] = "SEPARATING"
 
-            # 每车仅保留最近 N 个图像会话，清理更旧窗口
-            same_car_keys = [key for key in reconstruct_image_sessions.keys() if key[0] == car_id]
-            if len(same_car_keys) > IMAGE_SESSION_WINDOW_PER_CAR:
-                same_car_keys.sort(key=lambda key: reconstruct_image_sessions[key].start_time)
-                for key in same_car_keys[:-IMAGE_SESSION_WINDOW_PER_CAR]:
-                    reconstruct_image_sessions.pop(key, None)
-        
-        print(f"📷 图像元信息 ({car_id}): seq={seq}, {width}x{height}, len={total_length}")
-        return True
-        
-    except Exception as e:
-        print(f"❌ 处理图像元信息失败 ({car_id}): {e}")
-        return False
+        back_cmd = f"[M,{car_id},0,-0.15,0]"
+        udp_server.send_to_car(car_id, back_cmd)
+        _log_reconstruct_event(f"分离后退: {car_id} 5s")
 
+        time.sleep(5.0)
 
-def handle_image_chunk(car_id, parts, binary_data):
-    """处理图像分片包"""
-    try:
-        with reconstruct_lock:
-            if reconstruct_state.get("phase") == "assembling":
-                waiting_car = reconstruct_state.get("waiting_car_id")
-                if waiting_car and waiting_car != car_id:
-                    _log_reconstruct_event(f"忽略非当前车辆图像分片: {car_id} (等待 {waiting_car})")
-                    return False
-        # 解析参数: [R,IMG_CHUNK,CARx,SEQ=时间戳,IDX=分片序号,TOT=总分片,SZ=本片字节]
-        params = {}
-        for part in parts[3:]:
-            if '=' in part:
-                key, value = part.split('=', 1)
-                params[key] = value
-        
-        seq = int(params.get('SEQ', 0))
-        chunk_idx = int(params.get('IDX', 0))
-        total_chunks = int(params.get('TOT', 0))
-        chunk_size = int(params.get('SZ', 0))
-        
-        # 查找对应的重组会话
-        session_key = (car_id, seq)
-        with reconstruct_lock:
-            session = reconstruct_image_sessions.get(session_key)
-        if not session:
-            print(f"⚠️ 找不到图像会话: {car_id} seq={seq}")
-            return False
-            
-        # 检查超时
-        if session.is_timed_out():
-            print(f"⚠️ 图像重组超时: seq={seq}")
-            with reconstruct_lock:
-                reconstruct_image_sessions.pop(session_key, None)
-            return False
-        # 设置总分片数（只在第一次收到时设置）
-        # 验证分片头与数据长度一致
-        if chunk_size != len(binary_data):
-            print(f"⚠️ 分片大小不匹配 ({len(binary_data)} != {chunk_size}) seq={seq} idx={chunk_idx}")
-            with reconstruct_lock:
-                reconstruct_image_sessions.pop(session_key, None)
-            return False
+        stop_cmd = f"[M,{car_id},0,0,0]"
+        udp_server.send_to_car(car_id, stop_cmd)
+        _log_reconstruct_event(f"分离停止: {car_id}")
 
-        # 设置总分片数（只在第一次收到时设置）
-        if session.total_chunks == 0:
-            session.total_chunks = total_chunks
-        else:
-            # 如果之后收到的 TOT 与会话记录不一致，丢弃并要求重发
-            if total_chunks != session.total_chunks:
-                print(f"⚠️ 分片总数不一致: {total_chunks} != {session.total_chunks} seq={seq}")
-                with reconstruct_lock:
-                    reconstruct_image_sessions.pop(session_key, None)
-                return False
-            
-        # 检查索引范围（0-based，范围 0 到 total_chunks-1）
-        if chunk_idx < 0 or (session.total_chunks and chunk_idx >= session.total_chunks):
-            print(f"⚠️ 分片索引超出范围: idx={chunk_idx} tot={session.total_chunks} seq={seq}")
-            with reconstruct_lock:
-                reconstruct_image_sessions.pop(session_key, None)
-            return False
+    with reconstruct_lock:
+        reconstruct_state["phase"] = "idle"
+        reconstruct_state["subphase"] = "idle"
+        reconstruct_state["active"] = False
+        reconstruct_state["waiting_car_id"] = None
+        reconstruct_state["current_index"] = None
 
-        # 添加分片
-        session.add_chunk(chunk_idx, binary_data)
-        
-        # 检查是否完成
-        if session.is_complete():
-            print(f"✅ 图像重组完成 ({car_id}): seq={seq}, 分片={len(session.chunks)}/{total_chunks}")
-            
-            # 重组图像
-            image_data = session.reassemble_image()
-            if image_data:
-                # 处理图像并计算位姿误差
-                pose_error = _process_image_and_calculate_pose(car_id, image_data, session.width, session.height)
-                if pose_error:
-                    # 更新制导控制器
-                    _update_guide_controller(car_id, pose_error)
-                    
-            # 清理会话
-            with reconstruct_lock:
-                reconstruct_image_sessions.pop(session_key, None)
-            
-        return True
-        
-    except Exception as e:
-        print(f"❌ 处理图像分片失败 ({car_id}): {e}")
-        return False
-
-
-def _process_image_and_calculate_pose(car_id, image_data, width, height):
-    """处理图像并计算位姿误差"""
-    try:
-        # 解码图像
-        np_arr = np.frombuffer(image_data, np.uint8)
-        image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-        
-        if image is None:
-            _log_reconstruct_event(f"图像解码失败 ({car_id})")
-            return None
-            
-        # 转换为灰度图
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        
-        # 检测AprilTag
-        corners, ids, _ = TAG_DETECTOR.detectMarkers(gray)
-        
-        if ids is None or len(ids) == 0:
-            _log_reconstruct_event(f"未检测到AprilTag ({car_id})")
-            return None
-            
-        # 假设检测到的是前车的标签
-        # 这里简化处理：使用第一个检测到的标签
-        tag_corners = corners[0][0]
-        
-        # 计算标签中心点
-        center_x = np.mean(tag_corners[:, 0])
-        center_y = np.mean(tag_corners[:, 1])
-        
-        # 计算图像中心点
-        image_center_x = width / 2
-        image_center_y = height / 2
-        
-        # 计算像素误差（转换为实际距离）
-        # 使用AprilTag尺寸（60mm）进行更精确的距离估计
-        if len(tag_corners) >= 4:
-            # 计算AprilTag在图像中的尺寸（像素）
-            tag_width_pixels = np.linalg.norm(tag_corners[1] - tag_corners[0])
-            tag_height_pixels = np.linalg.norm(tag_corners[2] - tag_corners[1])
-            tag_avg_size_pixels = (tag_width_pixels + tag_height_pixels) / 2
-            
-            # 根据AprilTag实际尺寸计算像素到米的比例
-            if tag_avg_size_pixels > 0:
-                pixel_to_meter = APRILTAG_SIZE / tag_avg_size_pixels
-            else:
-                pixel_to_meter = PIXEL_TO_METER_RATIO
-        else:
-            pixel_to_meter = PIXEL_TO_METER_RATIO
-        
-        error_x = (center_x - image_center_x) * pixel_to_meter
-        error_y = (center_y - image_center_y) * pixel_to_meter
-        
-        # 计算航向角误差（通过标签的旋转）
-        # 简化处理：使用标签的四个角点计算方向
-        if len(tag_corners) >= 4:
-            # 计算标签的方向向量
-            vec1 = tag_corners[1] - tag_corners[0]
-            vec2 = tag_corners[2] - tag_corners[1]
-            
-            # 选择较长的边作为方向参考
-            if np.linalg.norm(vec1) > np.linalg.norm(vec2):
-                direction_vec = vec1
-            else:
-                direction_vec = vec2
-                
-            # 计算角度（相对于水平方向）
-            angle_rad = np.arctan2(direction_vec[1], direction_vec[0])
-            error_yaw = angle_rad
-        else:
-            error_yaw = 0.0
-            
-        _log_reconstruct_event(f"位姿误差 ({car_id}): x={error_x:.3f}m, y={error_y:.3f}m, yaw={error_yaw:.3f}rad")
-        
-        # 更新当前显示的图像（带检测结果的可视化）
-        _update_current_image(car_id, image, corners, ids, error_x, error_y)
-        
-        return (error_x, error_y, error_yaw)
-        
-    except Exception as e:
-        _log_reconstruct_event(f"图像处理失败 ({car_id}): {e}")
-        return None
-
-
-def _update_current_image(car_id, image, corners, ids, error_x, error_y):
-    """更新当前显示的图像（带可视化）"""
-    try:
-        # 绘制检测结果
-        result_image = image.copy()
-        
-        # 绘制AprilTag检测框
-        cv2.aruco.drawDetectedMarkers(result_image, corners, ids)
-        
-        # 绘制图像中心线
-        height, width = result_image.shape[:2]
-        cv2.line(result_image, (width//2, 0), (width//2, height), (0, 255, 0), 2)
-        cv2.line(result_image, (0, height//2), (width, height//2), (0, 255, 0), 2)
-        
-        # 计算AprilTag尺寸信息
-        tag_size_info = ""
-        if len(corners) > 0 and len(corners[0][0]) >= 4:
-            tag_corners = corners[0][0]
-            tag_width_pixels = np.linalg.norm(tag_corners[1] - tag_corners[0])
-            tag_height_pixels = np.linalg.norm(tag_corners[2] - tag_corners[1])
-            tag_avg_size_pixels = (tag_width_pixels + tag_height_pixels) / 2
-            
-            # 计算估计距离（基于AprilTag尺寸）
-            if tag_avg_size_pixels > 0:
-                estimated_distance = (APRILTAG_SIZE * width) / (tag_avg_size_pixels * 2)
-                tag_size_info = f" 距离:{estimated_distance:.2f}m"
-        
-        # 绘制误差信息
-        error_text = f"X:{error_x:.3f}m Y:{error_y:.3f}m"
-        cv2.putText(result_image, error_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-        cv2.putText(result_image, f"Car: {car_id}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-        cv2.putText(result_image, f"Tag: 60mm{tag_size_info}", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
-        
-        # 转换为base64格式用于Web显示
-        _, buffer = cv2.imencode('.jpg', result_image)
-        image_base64 = base64.b64encode(buffer).decode('utf-8')
-        
-        with reconstruct_lock:
-            reconstruct_state["current_image"] = image_base64
-            reconstruct_state["current_image_car"] = car_id
-            reconstruct_state["image_timestamp"] = time.time()
-            
-    except Exception as e:
-        _log_reconstruct_event(f"图像可视化失败 ({car_id}): {e}")
-
+    _restore_previous_topology()
 
 def _update_guide_controller(car_id, pose_error):
     """更新制导控制器"""
@@ -1738,7 +1390,7 @@ def _update_guide_controller(car_id, pose_error):
         # 如果控制器未激活，启动它
         if not controller.active:
             controller.start_guidance()
-            print(f"🚀 启动制导控制器 ({car_id})")
+            print(f" 启动制导控制器 ({car_id})")
             
         # 更新位姿误差
         controller.update_pose_error(*pose_error)
@@ -1746,21 +1398,9 @@ def _update_guide_controller(car_id, pose_error):
 
 def handle_reconstruct_report(data):
     """处理重构相关报告"""
-    # 1) 二进制图像分片优先：必须先于任何 decode 处理
+    # 1) 二进制图像分片优先：旧协议忽略
     if isinstance(data, bytes) and b'IMG_CHUNK' in data and b'\n' in data:
-        header_end = data.find(b'\n')
-        if header_end > 0:
-            header_bytes = data[:header_end]
-            binary_payload = data[header_end + 1:]
-            header_text = header_bytes.decode('utf-8', errors='ignore').strip()
-
-            if header_text.startswith('[') and header_text.endswith(']'):
-                content = header_text[1:-1]
-                parts = [part.strip() for part in content.split(',') if part.strip()]
-                if len(parts) >= 3 and parts[0] == "R" and parts[1] == "IMG_CHUNK":
-                    car_id = parts[2]
-                    return handle_image_chunk(car_id, parts, binary_payload)
-        return False
+        return True
 
     # 2) 非图像二进制包再做安全文本解码
     if isinstance(data, bytes):
@@ -1786,7 +1426,7 @@ def handle_reconstruct_report(data):
     car_id = parts[2] if len(parts) > 2 else None
 
     if command == "IMG_META" and car_id:
-        return handle_image_meta(car_id, parts)
+        return True
 
     if command == "PREP_OK" and car_id:
         with reconstruct_lock:
@@ -1870,6 +1510,10 @@ def handle_reconstruct_report(data):
     if command == "STEP_OK" and car_id:
         # 停止当前车的制导控制器
         with reconstruct_lock:
+            if reconstruct_state.get("phase") != "assembling":
+                return True
+            if reconstruct_state.get("waiting_car_id") != car_id:
+                return True
             if car_id in reconstruct_state["guide_controllers"]:
                 reconstruct_state["guide_controllers"][car_id].stop_guidance()
 
@@ -1903,10 +1547,6 @@ def handle_reconstruct_report(data):
                 _write_readable_log("STEP_FAIL", car_id, status="拼接失败")
             except Exception:
                 pass
-
-            # 清理当前车的图像会话，准备重试 STEP
-            for session_key in [key for key in reconstruct_image_sessions.keys() if key[0] == car_id]:
-                reconstruct_image_sessions.pop(session_key, None)
 
             if reconstruct_state.get("phase") == "assembling":
                 waiting_car = reconstruct_state.get("waiting_car_id")
@@ -2030,9 +1670,9 @@ def start_reconstruct():
 
     data = request.json or {}
     order = data.get('order') or ["CAR1", "CAR2", "CAR3", "CAR4"]
-    if not isinstance(order, list) or len(order) != 4:
-        return jsonify({'success': False, 'error': '需要提供4辆小车的重构顺序'}), 400
-    if len(set(order)) != 4:
+    if not isinstance(order, list) or len(order) < 1:
+        return jsonify({'success': False, 'error': '需要提供至少1辆小车的重构顺序'}), 400
+    if len(set(order)) != len(order):
         return jsonify({'success': False, 'error': '重构顺序中包含重复小车'}), 400
 
     with car_lock:
@@ -2089,8 +1729,7 @@ def separate_reconstruct():
         reconstruct_state["waiting_car_id"] = order[-1]
         reconstruct_state["last_error"] = None
 
-    udp_server.broadcast_global_command("[R,SEP_BEGIN]")
-    _send_reconstruct_step(order[-1], len(order) - 1, len(order), is_separation=True)
+    threading.Thread(target=_run_separation_sequence, args=(list(order),), daemon=True).start()
 
     return jsonify({
         'success': True,
@@ -2134,6 +1773,9 @@ def get_reconstruct_status():
             'last_error': reconstruct_state["last_error"],
             'current_image_car': reconstruct_state["current_image_car"],
             'image_timestamp': reconstruct_state["image_timestamp"],
+            'current_error': reconstruct_state.get("current_error"),
+            'current_error_car': reconstruct_state.get("current_error_car"),
+            'current_has_tag': reconstruct_state.get("current_has_tag"),
             'debug_logs': reconstruct_state["debug_logs"][-20:]  # 返回最近20条日志
         }
     return jsonify(state_snapshot)
@@ -2150,13 +1792,10 @@ def get_reconstruct_events():
 @app.route('/api/reconstruct/params', methods=['GET', 'POST'])
 def get_or_set_reconstruct_params():
     """获取或设置重构参数（超时、窗口、GUIDE 频率等）"""
-    global IMAGE_REASSEMBLE_TIMEOUT, IMAGE_SESSION_WINDOW_PER_CAR
     global PREP_RETRY_TIMEOUT, PREP_RETRY_PREP_INTERVAL, PREP_RETRY_ORDER_INTERVAL
 
     if request.method == 'GET':
         return jsonify({
-            'image_reassemble_timeout_ms': IMAGE_REASSEMBLE_TIMEOUT,
-            'image_session_window_per_car': IMAGE_SESSION_WINDOW_PER_CAR,
             'prep_retry_timeout_s': PREP_RETRY_TIMEOUT,
             'prep_retry_prep_interval_s': PREP_RETRY_PREP_INTERVAL,
             'prep_retry_order_interval_s': PREP_RETRY_ORDER_INTERVAL,
@@ -2166,10 +1805,6 @@ def get_or_set_reconstruct_params():
 
     data = request.json or {}
     with reconstruct_lock:
-        if 'image_reassemble_timeout_ms' in data:
-            IMAGE_REASSEMBLE_TIMEOUT = int(data['image_reassemble_timeout_ms'])
-        if 'image_session_window_per_car' in data:
-            IMAGE_SESSION_WINDOW_PER_CAR = int(data['image_session_window_per_car'])
         if 'prep_retry_timeout_s' in data:
             PREP_RETRY_TIMEOUT = float(data['prep_retry_timeout_s'])
         if 'prep_retry_prep_interval_s' in data:
@@ -2193,13 +1828,72 @@ def get_reconstruct_image():
                 'success': True,
                 'image': reconstruct_state["current_image"],
                 'car_id': reconstruct_state["current_image_car"],
-                'timestamp': reconstruct_state["image_timestamp"]
+                'timestamp': reconstruct_state["image_timestamp"],
+                'error': reconstruct_state.get("current_error"),
+                'has_tag': reconstruct_state.get("current_has_tag", False)
             })
         else:
             return jsonify({
                 'success': False,
                 'message': '暂无图像数据'
             })
+
+
+@app.route('/api/vision/image')
+def get_vision_image():
+    """获取视觉监控图像（用于前端弹窗）"""
+    with vision_lock:
+        if vision_state["current_image"]:
+            return jsonify({
+                'success': True,
+                'image': vision_state["current_image"],
+                'car_id': vision_state["current_error_car"],
+                'timestamp': vision_state["image_timestamp"],
+                'error': vision_state.get("current_error"),
+                'has_tag': vision_state.get("current_has_tag", False),
+                'warning': vision_state.get("last_warning")
+            })
+        return jsonify({
+            'success': False,
+            'message': '暂无图像数据',
+            'warning': vision_state.get("last_warning")
+        })
+
+
+@app.route('/api/vision/select', methods=['POST'])
+def select_vision_car():
+    data = request.json or {}
+    car_id = data.get('car_id')
+    with vision_lock:
+        vision_state["monitor_car_id"] = car_id
+    return jsonify({'success': True, 'car_id': car_id})
+
+
+@app.route('/api/vision/status')
+def get_vision_status():
+    with vision_lock:
+        return jsonify({
+            'monitor_car_id': vision_state.get("monitor_car_id"),
+            'active_car_id': vision_state.get("active_car_id"),
+            'bound_cameras': vision_state.get("bound_cameras", {}),
+            'warning': vision_state.get("last_warning")
+        })
+
+
+@app.route('/api/vision/bind/scan', methods=['POST'])
+def scan_and_bind_vision_devices():
+    def _scan_task():
+        with vision_lock:
+            binder = vision_state.get("binder")
+        if not binder:
+            return
+        mapping = binder.scan_and_bind()
+        with vision_lock:
+            vision_state["bound_cameras"] = mapping
+            vision_state["last_warning"] = None if mapping else "未绑定到任何摄像头"
+
+    threading.Thread(target=_scan_task, daemon=True).start()
+    return jsonify({'success': True, 'message': '已开始重新扫描摄像头'})
 
 
 @app.route('/api/reconstruct/logs')
@@ -2246,7 +1940,7 @@ def get_reconstruct_logfile():
 
 def _switch_to_reconstruct_topology():
     order = reconstruct_state.get("order") or []
-    if len(order) != 4:
+    if len(order) < 2:
         return
     reconstruct_topology = _build_reconstruct_topology(order)
     _log_reconstruct_event(f"切换到重构拓扑: {order}")
@@ -2385,88 +2079,6 @@ def save_pose():
         'duration': duration
     })
 
-@app.route('/api/stream/toggle', methods=['POST'])
-def toggle_stream():
-    """控制视频流开启/关闭"""
-    try:
-        data = request.json
-        car_id = data.get('car_id')
-        enable = data.get('enable', False)
-        
-        if not car_id:
-            return jsonify({'success': False, 'error': '缺少car_id'})
-        
-        # 检查小车是否连接
-        with car_lock:
-            if car_id not in cars or not cars[car_id].connected:
-                return jsonify({'success': False, 'error': f'小车 {car_id} 未连接'})
-        
-        # 请求开启或关闭视频流
-        success = video_manager.request_stream(car_id, enable, udp_server)
-        
-        status = "开启" if enable else "关闭"
-        if success:
-            return jsonify({
-                'success': True,
-                'message': f'已请求{status}视频流: {car_id}',
-                'car_id': car_id,
-                'enabled': enable
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'error': f'视频流{status}请求失败'
-            })
-    except Exception as e:
-        print(f"❌ 视频流控制错误: {e}")
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/stream/feed/<car_id>')
-def stream_feed(car_id):
-    """提供MJPEG推流（多帧分界符分离）"""
-    def generate():
-        fps = 5  # 设定FPS以防止死循环
-        frame_interval = 1.0 / fps
-        last_frame_time = 0
-        last_frame_data = None
-        
-        try:
-            while True:
-                current_time = time.time()
-                
-                # 获取最新一帧
-                frame_data = video_manager.get_latest_frame(car_id)
-                
-                # 如果有新帧且距上次发送超过间隔时间
-                if frame_data and (current_time - last_frame_time >= frame_interval or frame_data != last_frame_data):
-                    last_frame_time = current_time
-                    last_frame_data = frame_data
-                    
-                    # MJPEG格式：每帧前添加分界符和Content-Length
-                    yield (b'--frame\r\n'
-                           b'Content-Type: image/jpeg\r\n'
-                           b'Content-Length: ' + str(len(frame_data)).encode() + b'\r\n'
-                           b'Content-Disposition: inline\r\n'
-                           b'\r\n' + frame_data + b'\r\n')
-                else:
-                    # 没有新帧时短暂等待
-                    time.sleep(0.05)
-                    
-        except Exception as e:
-            print(f"⚠️ 流生成器错误 ({car_id}): {e}")
-    
-    try:
-        response = app.response_class(
-            generate(),
-            mimetype='multipart/x-mixed-replace; boundary=frame'
-        )
-        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-        response.headers['Pragma'] = 'no-cache'
-        response.headers['Expires'] = '0'
-        return response
-    except Exception as e:
-        print(f"❌ 推流错误 ({car_id}): {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
 
 def get_local_ip():
     try:
@@ -2494,6 +2106,32 @@ def get_network_info():
 if __name__ == '__main__':
     get_network_info()
     update_topology_cache()
+
+    if DeviceBinder and PoseEstimator:
+        try:
+            if "TEMPLATE_DIR" in VISION_CONFIG:
+                VISION_CONFIG["TEMPLATE_DIR"] = os.path.join(
+                    os.path.dirname(__file__), "Car_vision_system", "templates"
+                )
+            binder = DeviceBinder(VISION_CONFIG)
+            estimator = PoseEstimator(VISION_CONFIG)
+            bound = {}
+            try:
+                bound = binder.scan_and_bind()
+            except Exception as e:
+                print(f"⚠️ 摄像头绑定失败，继续运行: {e}")
+            with vision_lock:
+                vision_state["binder"] = binder
+                vision_state["estimator"] = estimator
+                vision_state["bound_cameras"] = bound
+                vision_state["last_warning"] = None if bound else "未绑定到任何摄像头"
+
+            threading.Thread(target=_vision_loop, daemon=True).start()
+            print("👁️ 本地视觉线程已启动")
+        except Exception as e:
+            print(f"⚠️ 初始化本地视觉失败，继续运行: {e}")
+    else:
+        print("⚠️ 本地视觉模块不可用，跳过视觉线程")
     
     if udp_server.start():
         print("✅ UDP服务器启动成功")
