@@ -356,7 +356,7 @@ class GuideController:
         error_x, error_y, error_yaw = self.last_pose_error
         
         # 检查是否到达目标
-        if (abs(error_x) < 5.0 and abs(error_y) < 5.0 and abs(error_yaw) < 0.1):
+        if (abs(error_x) < 2.0 and abs(error_y) < 10.0 and abs(error_yaw) < 1.5):
             return 0, 0, 0, 1  # 目标到达
             
         # PID控制（简化版，只有P项）
