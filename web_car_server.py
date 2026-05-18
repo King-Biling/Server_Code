@@ -604,6 +604,7 @@ class UDPServer:
                 
                 current_time = time.time()
                 reconnect_event = False
+                heartbeat_event = False
                 normalized_addr = _normalize_car_address(addr)
                 
                 with car_lock:
@@ -627,15 +628,7 @@ class UDPServer:
                         car.speed = (vx ** 2 + vy ** 2) ** 0.5
                         car.last_update = current_time
                         car.update_count += 1
-                        # 记录心跳/最后一次遥测时间到 reconstruct_state events
-                        with reconstruct_lock:
-                            ev = reconstruct_state.setdefault("events", {}).setdefault(car_id, {})
-                            ev["last_heartbeat"] = current_time
-                            try:
-                                _write_persistent_event("heartbeat", car_id, {"ts": current_time})
-                                _write_readable_log("HEARTBEAT", car_id, x=f"{x:.2f}", y=f"{y:.2f}", yaw=f"{yaw:.1f}")
-                            except Exception:
-                                pass
+                        heartbeat_event = True
                     else:
                         cars[car_id] = Car(car_id, normalized_addr)
                         car = cars[car_id]
@@ -647,8 +640,19 @@ class UDPServer:
                         car.last_update = current_time
                         print(f"🚗 新小车连接: {car_id} from {normalized_addr}")
                         reconnect_event = True
+                        heartbeat_event = True
 
                     record_pose_sample(car_id, current_time, x, y, yaw)
+
+                if heartbeat_event:
+                    with reconstruct_lock:
+                        ev = reconstruct_state.setdefault("events", {}).setdefault(car_id, {})
+                        ev["last_heartbeat"] = current_time
+                    try:
+                        _write_persistent_event("heartbeat", car_id, {"ts": current_time})
+                        _write_readable_log("HEARTBEAT", car_id, x=f"{x:.2f}", y=f"{y:.2f}", yaw=f"{yaw:.1f}")
+                    except Exception:
+                        pass
 
                 if reconnect_event:
                     self._send_reconnect_ack(car_id)
@@ -800,6 +804,12 @@ class UDPServer:
         while self.running:
             try:
                 retry_actions = []
+                with car_lock:
+                    car_last_updates = {
+                        cid: car.last_update
+                        for cid, car in cars.items()
+                        if car.connected
+                    }
                 with reconstruct_lock:
                     if reconstruct_state.get("phase") == "preparing":
                         order = list(reconstruct_state.get("order", []))
@@ -832,9 +842,8 @@ class UDPServer:
                                 front_visible = True
                             else:
                                 front_car = order[idx - 1]
-                                with car_lock:
-                                    if front_car in cars and now - cars[front_car].last_update < 3.0:
-                                        front_visible = True
+                                if front_car in car_last_updates and now - car_last_updates[front_car] < 3.0:
+                                    front_visible = True
 
                             last_retry = entry.get("last_retry", 0)
                             if front_visible and now - last_retry > PREP_RETRY_PREP_INTERVAL:
@@ -1220,6 +1229,15 @@ def _log_reconstruct_event(message):
         _write_readable_log("LOG", None, msg=message)
     except Exception:
         pass
+
+
+def _log_reconstruct_request(action, order=None):
+    remote_addr = request.headers.get("X-Forwarded-For") or request.remote_addr
+    user_agent = request.headers.get("User-Agent", "unknown")
+    detail = f"{action} from {remote_addr} ua={user_agent}"
+    if order:
+        detail += f" order={order}"
+    _log_reconstruct_event(detail)
 
 
 def _reset_reconstruct_state():
@@ -1713,10 +1731,15 @@ def start_reconstruct():
     if len(set(order)) != len(order):
         return jsonify({'success': False, 'error': '重构顺序中包含重复小车'}), 400
 
+    _log_reconstruct_request("reconstruct_start", order=order)
+
     with car_lock:
-        for car_id in order:
-            if car_id not in cars or not cars[car_id].connected:
-                return jsonify({'success': False, 'error': f'小车 {car_id} 未连接'}), 400
+        missing = [
+            car_id for car_id in order
+            if car_id not in cars or not cars[car_id].connected
+        ]
+    if missing:
+        return jsonify({'success': False, 'error': f'小车 {missing[0]} 未连接'}), 400
 
     with reconstruct_lock:
         if reconstruct_state["phase"] not in ("idle", "assembled"):
@@ -1778,6 +1801,7 @@ def separate_reconstruct():
 
 @app.route('/api/reconstruct/abort', methods=['POST'])
 def abort_reconstruct():
+    _log_reconstruct_request("reconstruct_abort")
     udp_server.broadcast_global_command("[R,ABORT]")
     with reconstruct_lock:
         _restore_previous_topology()
