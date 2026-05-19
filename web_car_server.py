@@ -104,11 +104,12 @@ STEP_RETRY_MAX = 3
 ASM_STAGGER_WAIT_GRACE = 2.5
 
 # 末端制导参数
-GUIDE_SPEED_LIMIT = 0.15  # m/s
+GUIDE_SPEED_LIMIT = 0.105  # m/s
 # 误差输入单位为 cm，因此增益按 cm 缩放
-GUIDE_P_GAIN_X = 0.005
-GUIDE_P_GAIN_Y = 0.005
-GUIDE_P_GAIN_YAW = 0.3
+GUIDE_P_GAIN_X = 0.0035
+GUIDE_P_GAIN_Y = 0.0035
+GUIDE_P_GAIN_YAW = 0.03  # 大幅降低航向角P增益（因为输入是度数）
+GUIDE_MAX_VZ = 0.4       # 限制最大旋转角速度 (rad/s)
 
 # AprilTag参数
 APRILTAG_SIZE = 0.06  # 60mm
@@ -302,6 +303,7 @@ class GuideController:
         self.last_guide_time = 0
         self.target_reached = False
         self.last_pose_error = None
+        self.last_vision_time = 0
         self.guide_thread = None
         
     def start_guidance(self):
@@ -352,26 +354,43 @@ class GuideController:
         """计算制导速度"""
         if self.last_pose_error is None:
             return 0, 0, 0, 0
-            
-        error_x, error_y, error_yaw = self.last_pose_error
-        
+
+        if time.time() - self.last_vision_time > 0.5:
+            return 0.0, 0.0, 0.0, 0
+
+        error_x, error_y, _ = self.last_pose_error
+        yaw_error_deg = _get_front_heading_error(self.car_id)
+
         # 检查是否到达目标
-        if (abs(error_x) < 2.0 and abs(error_y) < 10.0 and abs(error_yaw) < 1.5):
-            return 0, 0, 0, 1  # 目标到达
-            
+        if (abs(error_x) < 10.0 and abs(error_y) < 2.0 and abs(yaw_error_deg) < 2.0):
+            return 0.0, 0.0, 0.0, 1
+
         # PID控制（简化版，只有P项）
-        vx = GUIDE_P_GAIN_X * error_x
-        vy = GUIDE_P_GAIN_Y * error_y
-        # 航向控制改用小车自身航向角与前车航向角
-        vz = GUIDE_P_GAIN_YAW * _get_front_heading_error(self.car_id)
-        
-        # 速度限制
+        vx = GUIDE_P_GAIN_X * error_x # 前进误差直接乘以增益
+        vy = GUIDE_P_GAIN_Y * error_y # 横向误差直接乘以增益
+        vz = GUIDE_P_GAIN_YAW * yaw_error_deg # 角度误差直接乘以增益
+
+        # 死区抑制
+        if abs(error_x) < 1.5:
+            vx = 0.0
+        if abs(error_y) < 1.5:
+            vy = 0.0
+        if abs(yaw_error_deg) < 2.0:
+            vz = 0.0
+
+        # 线速度限幅
         speed_magnitude = (vx**2 + vy**2)**0.5
         if speed_magnitude > GUIDE_SPEED_LIMIT:
             scale = GUIDE_SPEED_LIMIT / speed_magnitude
             vx *= scale
             vy *= scale
-            
+
+        # 角速度独立限幅
+        if vz > GUIDE_MAX_VZ:
+            vz = GUIDE_MAX_VZ
+        if vz < -GUIDE_MAX_VZ:
+            vz = -GUIDE_MAX_VZ
+
         return vx, vy, vz, 0
         
     def _send_guide_command(self, vx, vy, vz, done):
@@ -400,6 +419,7 @@ class GuideController:
     def update_pose_error(self, error_x, error_y, error_yaw):
         """更新位姿误差"""
         self.last_pose_error = (error_x, error_y, error_yaw)
+        self.last_vision_time = time.time()
 
 
 class PoseSaveSession:
@@ -499,13 +519,11 @@ class UDPServer:
             health_thread = threading.Thread(target=self._health_check_loop, daemon=True)
             health_thread.start()
 
-            # PREP 监控守护线程：检查未返回 PREP_OK 的车辆并按策略重试 PREP/ORDER
-            prep_watchdog_thread = threading.Thread(target=self._prep_watchdog_loop, daemon=True)
-            prep_watchdog_thread.start()
-
-            # STEP 监控守护线程：ACK/首图超时重试
-            step_watchdog_thread = threading.Thread(target=self._step_watchdog_loop, daemon=True)
-            step_watchdog_thread.start()
+            # PREP/STEP 守护线程（测试阶段停用，防止超时自动流转）
+            # prep_watchdog_thread = threading.Thread(target=self._prep_watchdog_loop, daemon=True)
+            # prep_watchdog_thread.start()
+            # step_watchdog_thread = threading.Thread(target=self._step_watchdog_loop, daemon=True)
+            # step_watchdog_thread.start()
 
             if not self.broadcast_server.start():
                 print("❌ 广播服务器启动失败，但UDP服务器继续运行")
@@ -1089,9 +1107,9 @@ def _vision_loop():
 
             success, z_dist, x_offset, yaw_angle, out_frame = estimator.process_frame(frame, target_car)
             # 映射到小车坐标：前进误差使用 z_dist，横向误差使用 -x_offset
-            error_x = float(z_dist) * 100.0 if success else 0.0
-            error_y = -float(x_offset) * 100.0 if success else 0.0
-            error_yaw = float(yaw_angle) if success else 0.0
+            error_x = float(z_dist) * 100.0 if success else 0.0 # 前进误差
+            error_y = -float(x_offset) * 100.0 if success else 0.0 # 横向误差
+            error_yaw = float(yaw_angle) if success else 0.0 # 角度误差
 
             _update_vision_snapshot(target_car, out_frame, (error_x, error_y, error_yaw), success)
             _mark_waiting_image_started(target_car)
@@ -1485,6 +1503,8 @@ def handle_reconstruct_report(data):
         return True
 
     if command == "PREP_OK" and car_id:
+        start_assembling = False
+        start_order = None
         with reconstruct_lock:
             if reconstruct_state["phase"] != "preparing":
                 return True
@@ -1503,17 +1523,19 @@ def handle_reconstruct_report(data):
                 _write_readable_log("PREP_OK", car_id, status="准备完成")
             except Exception:
                 pass
-            # PREP_OK 支持重复上报，按有效窗口判定全车是否准备好
-            if _all_prep_ok_in_window(reconstruct_state["order"]):
+            # PREP_OK 支持重复上报，全员到齐后挂起等待人工验证
+            order = reconstruct_state.get("order", [])
+            if order and all(cid in reconstruct_state["prepared"] for cid in order):
                 reconstruct_state["phase"] = "assembling"
                 reconstruct_state["subphase"] = "SEND_STEP"
                 reconstruct_state["current_index"] = 0
-                reconstruct_state["waiting_car_id"] = reconstruct_state["order"][0]
-                _send_reconstruct_step(reconstruct_state["order"][0], 0, len(reconstruct_state["order"]), is_separation=False)
-
-                # 启动第一辆车的制导控制器
-                first_car = reconstruct_state["order"][0]
-                reconstruct_state["guide_controllers"][first_car] = GuideController(first_car)
+                reconstruct_state["waiting_car_id"] = order[0]
+                start_assembling = True
+                start_order = list(order)
+        if start_assembling and start_order:
+            udp_server.broadcast_global_command("[R,ASM_START]")
+            _log_reconstruct_event("全员准备就绪，自动开启顺序拼接流程...")
+            _advance_reconstruct_assembly(start_order[0])
         return True
 
     if command == "STEP_ACK" and car_id:
@@ -1766,8 +1788,8 @@ def start_reconstruct():
     # 进入重构模式后立即切换到重构拓扑，方便准备阶段获取前后车关系
     _switch_to_reconstruct_topology()
 
-    udp_server.broadcast_global_command("[R,PREP]")
     udp_server.broadcast_global_command(f"[R,ORDER,{','.join(order)}]")
+    udp_server.broadcast_global_command("[R,PREP]")
 
     return jsonify({
         'success': True,
@@ -1814,11 +1836,7 @@ def abort_reconstruct():
 @app.route('/api/reconstruct/status')
 def get_reconstruct_status():
     with reconstruct_lock:
-        now = time.time()
-        prepared_valid = [
-            car_id for car_id, ts in reconstruct_state["prepared"].items()
-            if now - ts <= PREP_OK_VALID_WINDOW
-        ]
+        prepared_valid = list(reconstruct_state["prepared"].keys())
         waiting_car = reconstruct_state["waiting_car_id"]
         waiting_runtime = {}
         if waiting_car:
