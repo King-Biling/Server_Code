@@ -1222,6 +1222,30 @@ def _build_reconstruct_topology(order):
             matrix[car_mapping[source]][car_mapping[target]] = 1
     return matrix
 
+def _switch_to_prep_topology(order):
+    if not order or len(order) < 2:
+        return
+    car_mapping = {"CAR1": 0, "CAR2": 1, "CAR3": 2, "CAR4": 3}
+    matrix = [[0 for _ in range(4)] for _ in range(4)]
+    head = order[0]
+    if head not in car_mapping:
+        return
+    head_index = car_mapping[head]
+    for target in order[1:]:
+        if target in car_mapping:
+            matrix[head_index][car_mapping[target]] = 1
+    _log_reconstruct_event(f"切换到准备阶段中心拓扑: {order}")
+    _log_reconstruct_event(f"准备阶段拓扑矩阵: {matrix}")
+    _apply_topology(matrix, enable=True)
+
+def _switch_to_chain_topology(order):
+    if not order or len(order) < 2:
+        return
+    chain_topology = _build_reconstruct_topology(order)
+    _log_reconstruct_event(f"切换到拼接阶段链式拓扑: {order}")
+    _log_reconstruct_event(f"拼接阶段拓扑矩阵: {chain_topology}")
+    _apply_topology(chain_topology, enable=True)
+
 def _get_reconstruct_pos_label(index, total):
     if total == 4 and 0 <= index < 4:
         return RECONSTRUCT_POS_LABELS[index]
@@ -1390,7 +1414,7 @@ def _run_separation_sequence(order):
             reconstruct_state["current_index"] = idx
             reconstruct_state["subphase"] = "SEPARATING"
 
-        back_cmd = f"[M,{car_id},0,-0.15,0]"
+        back_cmd = f"[M,{car_id},-0.15,0,0]"
         udp_server.send_to_car(car_id, back_cmd)
         _log_reconstruct_event(f"分离后退: {car_id} 5s")
 
@@ -1523,9 +1547,10 @@ def handle_reconstruct_report(data):
                 _write_readable_log("PREP_OK", car_id, status="准备完成")
             except Exception:
                 pass
-            # PREP_OK 支持重复上报，全员到齐后挂起等待人工验证
+            # PREP_OK 支持重复上报，全员到齐后自动进入组装拓扑与流程
             order = reconstruct_state.get("order", [])
             if order and all(cid in reconstruct_state["prepared"] for cid in order):
+                _switch_to_chain_topology(order)
                 reconstruct_state["phase"] = "assembling"
                 reconstruct_state["subphase"] = "SEND_STEP"
                 reconstruct_state["current_index"] = 0
@@ -1785,8 +1810,8 @@ def start_reconstruct():
             prep_map[car_id] = {"last_prep_ok": 0, "last_retry": 0, "retries": 0}
         reconstruct_state["prep_waiting"] = prep_map
 
-    # 进入重构模式后立即切换到重构拓扑，方便准备阶段获取前后车关系
-    _switch_to_reconstruct_topology()
+    # 进入重构模式后切换为准备阶段中心拓扑
+    _switch_to_prep_topology(order)
 
     udp_server.broadcast_global_command(f"[R,ORDER,{','.join(order)}]")
     udp_server.broadcast_global_command("[R,PREP]")
@@ -2017,15 +2042,6 @@ def get_reconstruct_logfile():
         return jsonify({'success': True, 'file': os.path.basename(filename), 'lines': parsed})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
-
-def _switch_to_reconstruct_topology():
-    order = reconstruct_state.get("order") or []
-    if len(order) < 2:
-        return
-    reconstruct_topology = _build_reconstruct_topology(order)
-    _log_reconstruct_event(f"切换到重构拓扑: {order}")
-    _log_reconstruct_event(f"重构拓扑矩阵: {reconstruct_topology}")
-    _apply_topology(reconstruct_topology, enable=True)
 
 def _restore_previous_topology():
     prev_topology = reconstruct_state.get("prev_topology")
