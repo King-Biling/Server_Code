@@ -1210,6 +1210,12 @@ def _apply_topology(matrix, enable):
 
     topology_enabled = enable
 
+def _burst_broadcast_command(command, repeat=3, delay=0.05):
+    for i in range(repeat):
+        udp_server.broadcast_global_command(command)
+        if i < repeat - 1:
+            time.sleep(delay)
+
 def _build_reconstruct_topology(order):
     car_mapping = {"CAR1": 0, "CAR2": 1, "CAR3": 2, "CAR4": 3}
     matrix = [[0 for _ in range(4)] for _ in range(4)]
@@ -1353,7 +1359,12 @@ def _send_reconstruct_step(car_id, index, total, is_separation=False):
     else:
         cmd = f"[R,STEP,{car_id},POS={pos_label}]"
         _log_reconstruct_event(f"发送拼接指令: {cmd}")
-    return udp_server.send_to_car_reliable(car_id, cmd, max_retries=4)
+    success = False
+    for attempt in range(3):
+        success = udp_server.send_to_car_reliable(car_id, cmd, max_retries=4)
+        if attempt < 2:
+            time.sleep(0.05)
+    return success
 
 def _advance_reconstruct_assembly(car_id):
     with reconstruct_lock:
@@ -1529,36 +1540,45 @@ def handle_reconstruct_report(data):
     if command == "PREP_OK" and car_id:
         start_assembling = False
         start_order = None
+        resend_asm_start = False
         with reconstruct_lock:
-            if reconstruct_state["phase"] != "preparing":
+            phase = reconstruct_state["phase"]
+            if phase == "assembling":
+                resend_asm_start = True
+            elif phase != "preparing":
                 return True
-            if car_id not in reconstruct_state["order"]:
-                return True
-            reconstruct_state["prepared"][car_id] = time.time()
-            # 记录 PREP_OK 时间
-            entry = reconstruct_state.setdefault("prep_waiting", {}).setdefault(car_id, {"last_prep_ok": 0, "last_retry": 0, "retries": 0})
-            now = time.time()
-            entry["last_prep_ok"] = now
-            # 记录事件时间用于诊断
-            ev = reconstruct_state.setdefault("events", {}).setdefault(car_id, {})
-            ev["last_prep_ok"] = now
-            try:
-                _write_persistent_event("prep_ok", car_id, {"ts": now})
-                _write_readable_log("PREP_OK", car_id, status="准备完成")
-            except Exception:
-                pass
-            # PREP_OK 支持重复上报，全员到齐后自动进入组装拓扑与流程
-            order = reconstruct_state.get("order", [])
-            if order and all(cid in reconstruct_state["prepared"] for cid in order):
-                _switch_to_chain_topology(order)
-                reconstruct_state["phase"] = "assembling"
-                reconstruct_state["subphase"] = "SEND_STEP"
-                reconstruct_state["current_index"] = 0
-                reconstruct_state["waiting_car_id"] = order[0]
-                start_assembling = True
-                start_order = list(order)
+            if not resend_asm_start:
+                if car_id not in reconstruct_state["order"]:
+                    return True
+                reconstruct_state["prepared"][car_id] = time.time()
+                # 记录 PREP_OK 时间
+                entry = reconstruct_state.setdefault("prep_waiting", {}).setdefault(car_id, {"last_prep_ok": 0, "last_retry": 0, "retries": 0})
+                now = time.time()
+                entry["last_prep_ok"] = now
+                # 记录事件时间用于诊断
+                ev = reconstruct_state.setdefault("events", {}).setdefault(car_id, {})
+                ev["last_prep_ok"] = now
+                try:
+                    _write_persistent_event("prep_ok", car_id, {"ts": now})
+                    _write_readable_log("PREP_OK", car_id, status="准备完成")
+                except Exception:
+                    pass
+                # PREP_OK 支持重复上报，全员到齐后自动进入组装拓扑与流程
+                order = reconstruct_state.get("order", [])
+                if order and all(cid in reconstruct_state["prepared"] for cid in order):
+                    _switch_to_chain_topology(order)
+                    reconstruct_state["phase"] = "assembling"
+                    reconstruct_state["subphase"] = "SEND_STEP"
+                    reconstruct_state["current_index"] = 0
+                    reconstruct_state["waiting_car_id"] = order[0]
+                    start_assembling = True
+                    start_order = list(order)
+        if resend_asm_start:
+            _burst_broadcast_command("[R,ASM_START]")
+            _log_reconstruct_event(f"补救 ASM_START 广播 (来自 {car_id} 的 PREP_OK 重传)")
+            return True
         if start_assembling and start_order:
-            udp_server.broadcast_global_command("[R,ASM_START]")
+            _burst_broadcast_command("[R,ASM_START]")
             _log_reconstruct_event("全员准备就绪，自动开启顺序拼接流程...")
             _advance_reconstruct_assembly(start_order[0])
         return True
@@ -1813,8 +1833,8 @@ def start_reconstruct():
     # 进入重构模式后切换为准备阶段中心拓扑
     _switch_to_prep_topology(order)
 
-    udp_server.broadcast_global_command(f"[R,ORDER,{','.join(order)}]")
-    udp_server.broadcast_global_command("[R,PREP]")
+    _burst_broadcast_command(f"[R,ORDER,{','.join(order)}]")
+    _burst_broadcast_command("[R,PREP]")
 
     return jsonify({
         'success': True,
