@@ -110,6 +110,8 @@ GUIDE_P_GAIN_X = 0.0035
 GUIDE_P_GAIN_Y = 0.0035
 GUIDE_P_GAIN_YAW = 0.03  # 大幅降低航向角P增益（因为输入是度数）
 GUIDE_MAX_VZ = 0.4       # 限制最大旋转角速度 (rad/s)
+GUIDE_FUNNEL_Y_THRESHOLD = 35.0  # cm
+GUIDE_FUNNEL_YAW_THRESHOLD = 5.0  # deg
 
 # AprilTag参数
 APRILTAG_SIZE = 0.06  # 60mm
@@ -369,6 +371,10 @@ class GuideController:
         vx = GUIDE_P_GAIN_X * error_x # 前进误差直接乘以增益
         vy = GUIDE_P_GAIN_Y * error_y # 横向误差直接乘以增益
         vz = GUIDE_P_GAIN_YAW * yaw_error_deg # 角度误差直接乘以增益
+
+        # 解耦控制：横向/航向未对中时禁止前进
+        if abs(error_y) > GUIDE_FUNNEL_Y_THRESHOLD or abs(yaw_error_deg) > GUIDE_FUNNEL_YAW_THRESHOLD:
+            vx = 0.0
 
         # 死区抑制
         if abs(error_x) < 1.5:
@@ -2006,6 +2012,7 @@ def get_reconstruct_events():
 def get_or_set_reconstruct_params():
     """获取或设置重构参数（超时、窗口、GUIDE 频率等）"""
     global PREP_RETRY_TIMEOUT, PREP_RETRY_PREP_INTERVAL, PREP_RETRY_ORDER_INTERVAL
+    global GUIDE_FUNNEL_Y_THRESHOLD, GUIDE_FUNNEL_YAW_THRESHOLD
 
     if request.method == 'GET':
         return jsonify({
@@ -2013,7 +2020,9 @@ def get_or_set_reconstruct_params():
             'prep_retry_prep_interval_s': PREP_RETRY_PREP_INTERVAL,
             'prep_retry_order_interval_s': PREP_RETRY_ORDER_INTERVAL,
             'guide_frequency_hz': reconstruct_state.get("guide_frequency"),
-            'guide_timeout_s': reconstruct_state.get("guide_timeout")
+            'guide_timeout_s': reconstruct_state.get("guide_timeout"),
+            'guide_funnel_y_threshold_cm': GUIDE_FUNNEL_Y_THRESHOLD,
+            'guide_funnel_yaw_threshold_deg': GUIDE_FUNNEL_YAW_THRESHOLD
         })
 
     data = request.json or {}
@@ -2028,6 +2037,10 @@ def get_or_set_reconstruct_params():
             reconstruct_state["guide_frequency"] = float(data['guide_frequency_hz'])
         if 'guide_timeout_s' in data:
             reconstruct_state["guide_timeout"] = float(data['guide_timeout_s'])
+        if 'guide_funnel_y_threshold_cm' in data:
+            GUIDE_FUNNEL_Y_THRESHOLD = float(data['guide_funnel_y_threshold_cm'])
+        if 'guide_funnel_yaw_threshold_deg' in data:
+            GUIDE_FUNNEL_YAW_THRESHOLD = float(data['guide_funnel_yaw_threshold_deg'])
 
     return jsonify({'success': True})
 

@@ -12,14 +12,14 @@ CONFIG = {
     },
     "TEMPLATE_DIR": "templates",
     "SEARCH_ROI": [0, 100, 0, 200],  # [Y起始, Y结束, X起始, X结束]
-    "TAG_SIZE": 0.06,                # AprilTag 物理边长(�?)
+    "TAG_SIZE": 0.050,                # AprilTag 物理边长(米)
     "FRAME_WIDTH": 640,
     "FRAME_HEIGHT": 480
 }
 # ==========================================
 
 class DeviceBinder:
-    """硬件设备智能绑定模块：负责通过 OSD 水印识别相机对应的物理小�?"""
+    """硬件设备智能绑定模块：负责通过 OSD 水印识别相机对应的物理小车"""
     
     def __init__(self, config):
         self.config = config
