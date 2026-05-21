@@ -12,14 +12,14 @@ CONFIG = {
     },
     "TEMPLATE_DIR": "templates",
     "SEARCH_ROI": [0, 100, 0, 200],  # [Y起始, Y结束, X起始, X结束]
-    "TAG_SIZE": 0.06,                # AprilTag 物理边长(米)
+    "TAG_SIZE": 0.06,                # AprilTag 物理边长(�?)
     "FRAME_WIDTH": 640,
     "FRAME_HEIGHT": 480
 }
 # ==========================================
 
 class DeviceBinder:
-    """硬件设备智能绑定模块：负责通过 OSD 水印识别相机对应的物理小车"""
+    """硬件设备智能绑定模块：负责通过 OSD 水印识别相机对应的物理小�?"""
     
     def __init__(self, config):
         self.config = config
@@ -27,7 +27,7 @@ class DeviceBinder:
         self._load_templates()
 
     def _load_templates(self):
-        """加载灰度 OSD 模板到内存"""
+        """加载灰度 OSD 模板到内�?"""
         template_dir = self.config["TEMPLATE_DIR"]
         if not os.path.exists(template_dir):
             print(f" [Binder] 找不到模板文件夹 '{template_dir}'，请先运行截图脚本！")
@@ -39,10 +39,10 @@ class DeviceBinder:
                 tmpl = cv2.imread(os.path.join(template_dir, filename), cv2.IMREAD_GRAYSCALE)
                 if tmpl is not None:
                     self.template_dict[channel_name] = tmpl
-        print(f"📂 [Binder] 成功加载 {len(self.template_dict)} 个频道模板: {list(self.template_dict.keys())}")
+        print(f"📂 [Binder] 成功加载 {len(self.template_dict)} 个频道模�?: {list(self.template_dict.keys())}")
 
     def _open_camera(self, index):
-        """安全打开相机，强制 MJPG 与分辨率限制"""
+        """安全打开相机，强�? MJPG 与分辨率限制"""
         cap = cv2.VideoCapture(index, cv2.CAP_DSHOW)
         if cap.isOpened():
             cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
@@ -50,9 +50,9 @@ class DeviceBinder:
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.config["FRAME_HEIGHT"])
             actual_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
             actual_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
-            print(f"📷 [Binder] 摄像头索引 {index} 打开成功，分辨率 {actual_w}x{actual_h}")
+            print(f"📷 [Binder] 摄像头索�? {index} 打开成功，分辨率 {actual_w}x{actual_h}")
         else:
-            print(f"⚠️ [Binder] 摄像头索引 {index} 打开失败")
+            print(f"⚠️ [Binder] 摄像头索�? {index} 打开失败")
         return cap
 
     def _match_channel(self, frame):
@@ -74,7 +74,7 @@ class DeviceBinder:
                 highest_score = max_val
                 best_match = channel_name
                 
-        return best_match
+        return best_match, highest_score
 
     def scan_and_bind(self, max_cameras=6):
         """执行开机盲扫，返回 {CAR_ID: CAMERA_INDEX} 映射字典"""
@@ -83,28 +83,41 @@ class DeviceBinder:
             return bound_cameras
 
         print("\n" + "="*50)
-        print(" [Binder] 启动 OSD 频道扫描 (请保持图传蓝屏状态)...")
+        print(" [Binder] 启动 OSD 频道扫描 (请保持图传蓝屏状�?)...")
         
         for index in range(max_cameras):
             cap = self._open_camera(index)
             if not cap.isOpened():
                 cap.release()
-                continue
+                time.sleep(0.05)
+                cap = self._open_camera(index)
+                if not cap.isOpened():
+                    cap.release()
+                    continue
                 
             for _ in range(10): cap.read() # 等待曝光稳定
             
-            ret, frame = cap.read()
-            if ret:
-                channel = self._match_channel(frame)
-                if channel and channel in self.config["CHANNEL_MAP"]:
-                    car_id = self.config["CHANNEL_MAP"][channel]
-                    bound_cameras[car_id] = index
-                    print(f" 成功: 索引 [{index}] -> 频道 '{channel}' -> 绑定到小车 [{car_id}]")
+            best_channel = None
+            best_score = 0.0
+            for _ in range(3):
+                ret, frame = cap.read()
+                if not ret:
+                    continue
+                channel, score = self._match_channel(frame)
+                if channel and score > best_score:
+                    best_score = score
+                    best_channel = channel
+                time.sleep(0.03)
+
+            if best_channel and best_channel in self.config["CHANNEL_MAP"]:
+                car_id = self.config["CHANNEL_MAP"][best_channel]
+                bound_cameras[car_id] = index
+                print(f" 成功: 索引 [{index}] -> 频道 '{best_channel}' -> 绑定到小�? [{car_id}]")
             
             cap.release()
             time.sleep(0.1) # 保护 USB 总线
 
-        print(f" [Binder] 绑定完成，当前映射关系: {bound_cameras}\n" + "="*50)
+        print(f" [Binder] 绑定完成，当前映射关�?: {bound_cameras}\n" + "="*50)
         return bound_cameras
 
 
@@ -115,7 +128,7 @@ class PoseEstimator:
         self.config = config
         self.camera_params_cache = {} # 缓存小车相机参数
         
-        # 初始�? AprilTag 检测器
+        # 初始�?? AprilTag 检测器
         aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_APRILTAG_36h11)
         aruco_params = cv2.aruco.DetectorParameters()
         self.detector = cv2.aruco.ArucoDetector(aruco_dict, aruco_params)
@@ -144,7 +157,7 @@ class PoseEstimator:
             params_path = local_path
 
         if not params_path:
-            print(f"⚠️[Estimator] 找不到 {car_id} 的标定文件 {filename}")
+            print(f"⚠️[Estimator] 找不�? {car_id} 的标定文�? {filename}")
             self.camera_params_cache[car_id] = (None, None)
             return None, None
 
@@ -155,7 +168,7 @@ class PoseEstimator:
 
     def process_frame(self, frame, car_id):
         """
-        处理单帧图像，解算位姿误差
+        处理单帧图像，解算位姿误�?
         返回: (解算是否成功, z_dist, x_offset, yaw_angle, 绘制了结果的图像)
         """
         camera_matrix, dist_coeffs = self.load_params_for_car(car_id)
@@ -169,7 +182,7 @@ class PoseEstimator:
             tag_corners = corners[0][0]
             tag_id = ids[0][0]
             
-            # �? 2D 边框
+            # �?? 2D 边框
             cv2.aruco.drawDetectedMarkers(frame, corners, ids)
 
             success, rvec, tvec = cv2.solvePnP(
@@ -184,7 +197,7 @@ class PoseEstimator:
                 euler_angles, _, _, _, _, _ = cv2.RQDecomp3x3(rmat)
                 yaw_angle = euler_angles[1]
 
-                # 绘制 3D �?
+                # 绘制 3D �??
                 cv2.drawFrameAxes(frame, camera_matrix, dist_coeffs, rvec, tvec, 0.05)
 
                 return True, z_dist, x_offset, yaw_angle, frame
@@ -194,18 +207,18 @@ class PoseEstimator:
 
 # ================= 模拟服务器主程序 =================
 def main():
-    # 1. 实例化模�?
+    # 1. 实例化模�??
     binder = DeviceBinder(CONFIG)
     estimator = PoseEstimator(CONFIG)
     
     # 2. 执行硬件绑定
     bound_cameras = binder.scan_and_bind()
     if not bound_cameras:
-        print("❌未绑定任何设备，系统退出?")
+        print("❌未绑定任何设备，系统退�??")
         return
 
     print("🚀系统已就绪，请【开启小车图传电源】！")
-    print("👉按键 [1-8] 切换小车视角 | [Q] 退�?")
+    print("👉按键 [1-8] 切换小车视角 | [Q] 退�??")
 
     # 3. 初始化热切换状�?
     active_car_id = list(bound_cameras.keys())[0]
@@ -217,7 +230,7 @@ def main():
             if cap is None:
                 cam_idx = bound_cameras.get(active_car_id)
                 if cam_idx is not None:
-                    print(f"切换到 {active_car_id} (USB 索引: {cam_idx})")
+                    print(f"切换�? {active_car_id} (USB 索引: {cam_idx})")
                     cap = binder._open_camera(cam_idx) # 复用安全打开相机的逻辑
             
             ret, frame = cap.read() if cap else (False, None)

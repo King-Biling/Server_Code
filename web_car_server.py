@@ -1014,6 +1014,94 @@ vision_state = {
     "last_warning": None,
 }
 
+# 软开关：强制交互式输入部署车辆（不依赖环境变量）
+FORCE_VISION_PROMPT_SOFT = True
+
+def _get_available_car_ids():
+    channel_map = VISION_CONFIG.get("CHANNEL_MAP", {})
+    car_ids = sorted({str(v).upper() for v in channel_map.values()})
+    return car_ids
+
+def _parse_car_selection(raw_input, available_ids):
+    if not raw_input:
+        return []
+    text = raw_input.strip().upper()
+    if text in {"ALL", "*"}:
+        return list(available_ids)
+
+    tokens = []
+    normalized = text.replace(";", ",").replace(" ", ",")
+    for part in normalized.split(","):
+        item = part.strip()
+        if not item:
+            continue
+        if item.isdigit():
+            tokens.append(f"CAR{item}")
+        else:
+            tokens.append(item)
+
+    selected = []
+    for token in tokens:
+        if not token.startswith("CAR"):
+            token = f"CAR{token}"
+        selected.append(token)
+
+    normalized = []
+    for car_id in selected:
+        if car_id in available_ids:
+            normalized.append(car_id)
+    return sorted(set(normalized))
+
+def _prompt_deployed_cars(available_ids):
+    if not available_ids:
+        print("⚠️ 未发现可用车辆配置，跳过交互选择")
+        return []
+    force_prompt = FORCE_VISION_PROMPT_SOFT or os.getenv("FORCE_VISION_PROMPT") == "1"
+    if not sys.stdin.isatty() and not force_prompt:
+        print("⚠️ 非交互环境，默认绑定全部车辆")
+        return list(available_ids)
+    if force_prompt:
+        print("⚙️ FORCE_VISION_PROMPT=1，强制启用交互输入")
+
+    tips = ", ".join(available_ids)
+    print("\n请输入本次部署的小车编号，使用逗号分隔。")
+    print(f"可选: {tips}，例如: CAR2,CAR3 (或输入 all)")
+    while True:
+        try:
+            raw_input = input("部署车辆> ").strip()
+        except EOFError:
+            print("⚠️ 读取输入失败，默认绑定全部车辆")
+            return list(available_ids)
+
+        selected = _parse_car_selection(raw_input, available_ids)
+        if selected:
+            return selected
+        print("⚠️ 输入无效，请重新输入。")
+
+def _bind_vision_until_ready(binder, estimator, selected_cars):
+    while True:
+        try:
+            bound = binder.scan_and_bind()
+        except Exception as e:
+            print(f"⚠️ 摄像头绑定失败，将重新扫描: {e}")
+            time.sleep(0.8)
+            continue
+
+        missing = [car_id for car_id in selected_cars if car_id not in bound]
+        if not missing:
+            with vision_lock:
+                vision_state["binder"] = binder
+                vision_state["estimator"] = estimator
+                vision_state["bound_cameras"] = bound
+                vision_state["last_warning"] = None
+            return True
+
+        print(f"⚠️ 未绑定到指定车辆: {missing}，即将重新扫描...")
+        with vision_lock:
+            vision_state["bound_cameras"] = bound
+            vision_state["last_warning"] = f"未绑定到指定车辆: {missing}"
+        time.sleep(0.8)
+
 udp_server = UDPServer(UDP_HOST, UDP_PORT)
 
 def _update_vision_snapshot(car_id, frame, error_tuple, has_tag):
@@ -1200,13 +1288,13 @@ def _apply_topology(matrix, enable):
     update_topology_cache()
 
     if enable and not topology_enabled:
-        udp_server.broadcast_global_command("[T,E,1]")
+        _burst_broadcast_command("[T,E,1]")
 
     topology_cmd = f"[T,M,{_flatten_topology(communication_topology)}]"
-    udp_server.broadcast_global_command(topology_cmd)
+    _burst_broadcast_command(topology_cmd)
 
     if not enable and topology_enabled:
-        udp_server.broadcast_global_command("[T,E,0]")
+        _burst_broadcast_command("[T,E,0]")
 
     topology_enabled = enable
 
@@ -2231,16 +2319,16 @@ if __name__ == '__main__':
                 )
             binder = DeviceBinder(VISION_CONFIG)
             estimator = PoseEstimator(VISION_CONFIG)
-            bound = {}
+            available_ids = _get_available_car_ids()
+            selected_cars = _prompt_deployed_cars(available_ids)
+            print(f"✅ 本次部署车辆: {selected_cars}")
             try:
-                bound = binder.scan_and_bind()
-            except Exception as e:
-                print(f"⚠️ 摄像头绑定失败，继续运行: {e}")
-            with vision_lock:
-                vision_state["binder"] = binder
-                vision_state["estimator"] = estimator
-                vision_state["bound_cameras"] = bound
-                vision_state["last_warning"] = None if bound else "未绑定到任何摄像头"
+                if not _bind_vision_until_ready(binder, estimator, selected_cars):
+                    print("⚠️ 摄像头绑定未完成，系统退出")
+                    sys.exit(1)
+            except KeyboardInterrupt:
+                print("\n⚠️ 已手动退出摄像头绑定，系统退出")
+                sys.exit(1)
 
             threading.Thread(target=_vision_loop, daemon=True).start()
             print("👁️ 本地视觉线程已启动")
