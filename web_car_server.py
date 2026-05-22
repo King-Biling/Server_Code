@@ -1149,6 +1149,9 @@ def _mark_waiting_image_started(car_id):
 def _vision_loop():
     cap = None
     active_car = None
+    last_active_car = None
+    switch_time = 0.0
+    empty_frame_count = 0
 
     while True:
         try:
@@ -1171,6 +1174,9 @@ def _vision_loop():
                 active_car = target_car
                 with vision_lock:
                     vision_state["active_car_id"] = active_car
+                last_active_car = active_car
+                switch_time = time.time()
+                empty_frame_count = 0
 
             if not target_car or not binder or not estimator:
                 time.sleep(0.1)
@@ -1193,10 +1199,35 @@ def _vision_loop():
                         vision_state["last_warning"] = f"摄像头打开失败: {target_car} (USB {cam_index})"
                     time.sleep(0.5)
                     continue
+                switch_time = time.time()
+                empty_frame_count = 0
 
             ret, frame = cap.read()
             if not ret or frame is None:
+                empty_frame_count += 1
+                if empty_frame_count >= 30:
+                    print("⚠️ 检测到连续空帧/黑屏，强制重启摄像头通道...")
+                    if cap:
+                        cap.release()
+                    time.sleep(0.2)
+                    cap = None
+                    empty_frame_count = 0
                 time.sleep(0.02)
+                continue
+            empty_frame_count = 0
+
+            if time.time() - switch_time < 1.5:
+                cv2.putText(
+                    frame,
+                    "CAMERA WARMING UP...",
+                    (15, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.7,
+                    (0, 165, 255),
+                    2
+                )
+                _update_vision_snapshot(target_car, frame, (0.0, 0.0, 0.0), False)
+                time.sleep(0.03)
                 continue
 
             success, z_dist, x_offset, yaw_angle, out_frame = estimator.process_frame(frame, target_car)
@@ -1211,7 +1242,7 @@ def _vision_loop():
             if assembling and waiting_car == target_car and success:
                 _update_guide_controller(target_car, (error_x, error_y, error_yaw))
 
-            time.sleep(0.02)
+            time.sleep(0.03)
 
         except Exception as e:
             _log_reconstruct_event(f"视觉线程错误: {e}")
