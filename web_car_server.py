@@ -110,7 +110,7 @@ GUIDE_P_GAIN_X = 0.0035
 GUIDE_P_GAIN_Y = 0.0035
 GUIDE_P_GAIN_YAW = 0.03  # 大幅降低航向角P增益（因为输入是度数）
 GUIDE_MAX_VZ = 0.4       # 限制最大旋转角速度 (rad/s)
-GUIDE_FUNNEL_Y_THRESHOLD = 15.0  # cm
+GUIDE_FUNNEL_X_THRESHOLD = 15.0  # cm
 GUIDE_FUNNEL_YAW_THRESHOLD = 4.0  # deg
 
 # AprilTag参数
@@ -373,7 +373,7 @@ class GuideController:
         vz = GUIDE_P_GAIN_YAW * yaw_error_deg # 角度误差直接乘以增益
 
         # 解耦控制：横向/航向未对中时禁止前进
-        if abs(error_y) > GUIDE_FUNNEL_Y_THRESHOLD or abs(yaw_error_deg) > GUIDE_FUNNEL_YAW_THRESHOLD:
+        if abs(error_x) > GUIDE_FUNNEL_X_THRESHOLD or abs(yaw_error_deg) > GUIDE_FUNNEL_YAW_THRESHOLD:
             vx = 0.0
 
         # 死区抑制
