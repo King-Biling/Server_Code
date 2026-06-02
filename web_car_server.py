@@ -418,9 +418,9 @@ class GuideController:
             except Exception:
                 pass
             if done == 0:
-                print(f"🎯 制导指令 ({self.car_id}): vx={vx:.3f}, vy={vy:.3f}, vz={vz:.3f}")
+                print(f"制导指令 ({self.car_id}): vx={vx:.3f}, vy={vy:.3f}, vz={vz:.3f}")
             else:
-                print(f"✅ 制导完成 ({self.car_id})")
+                print(f"制导完成 ({self.car_id})")
         
     def update_pose_error(self, error_x, error_y, error_yaw):
         """更新位姿误差"""
@@ -460,21 +460,21 @@ class BroadcastServer:
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.socket.bind(('', self.port))
             self.running = True
-            print(f"📢 广播服务器启动成功，绑定端口 {self.port}")
-            print(f"🌐 使用子网广播地址: {self.broadcast_address}")
+            print(f"广播服务器启动成功，绑定端口 {self.port}")
+            print(f"使用子网广播地址: {self.broadcast_address}")
             return True
         except Exception as e:
-            print(f"❌ 广播服务器启动失败: {e}")
+            print(f"广播服务器启动失败: {e}")
             return False
 
     def broadcast_data(self, data):
         try:
             target = (self.broadcast_address, self.port)
             self.socket.sendto(data.encode('utf-8'), target)
-            print(f"📢 广播数据: {data} -> {self.broadcast_address}:{self.port}")
+            print(f"广播数据: {data} -> {self.broadcast_address}:{self.port}")
             return True
         except Exception as e:
-            print(f"❌ 广播发送失败: {e}")
+            print(f"广播发送失败: {e}")
             return False
 
     def broadcast_command_reliable(self, command, retries=5, delay=0.04):
@@ -484,7 +484,7 @@ class BroadcastServer:
                 success_count += 1
                 if i < retries - 1:
                     time.sleep(delay)
-        print(f"📢 广播指令 '{command}' 发送 {success_count}/{retries} 次")
+        print(f"广播指令 '{command}' 发送 {success_count}/{retries} 次")
         return success_count > 0
 
     def stop(self):
@@ -510,7 +510,7 @@ class UDPServer:
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 128 * 1024)
             self.socket.bind((self.host, self.port))
             self.running = True
-            print(f"🚀 UDP服务器启动在 {self.host}:{self.port}")
+            print(f"UDP服务器启动在 {self.host}:{self.port}")
             print("等待小车连接...")
 
             receive_thread = threading.Thread(target=self._receive_loop, daemon=True)
