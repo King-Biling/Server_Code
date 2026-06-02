@@ -1565,6 +1565,32 @@
                                 </div>
                             </div>
                         </div>
+                        <div class="collapsible-section">
+                            <div class="section-header" onclick="toggleSection('rectExperimentSection')">
+                                自动化编队实验
+                            </div>
+                            <div class="section-content expanded" id="rectExperimentSection">
+                                <div class="control-panel compact-control">
+                                    <div class="control-section">
+                                        <h3>矩形轨迹实验</h3>
+                                        <div style="display: grid; gap: 8px;">
+                                            <div>
+                                                <label>速度 (m/s):</label>
+                                                <input type="number" id="rectSpeed" class="coord-input" value="0.15" step="0.01" min="0.05" max="0.7">
+                                                <div style="font-size: 10px; color: var(--text-1); margin-top: 4px;">
+                                                    速度范围: 0.05 ~ 0.70 m/s
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="broadcast-controls" style="margin-top: 8px;">
+                                            <button class="broadcast-btn broadcast-on" onclick="startRectangleExperiment()">▶ 开始轨迹跟随与数据采集</button>
+                                            <button class="broadcast-btn broadcast-off" onclick="stopRectangleExperiment()">⏹ 结束运动并下载数据</button>
+                                        </div>
+                                        <div class="broadcast-status" id="rectExperimentStatus">状态: 未启用</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         <div class="right-controls">
                             <div class="collapsible-section">
                                 <div class="section-header" onclick="toggleSection('reconstructSection')">
@@ -3467,6 +3493,109 @@
             }
         }
 
+        const rectExperimentUiState = {
+            active: false,
+            lastDownloaded: new Set()
+        };
+
+        function updateRectExperimentStatus(active, detail = '') {
+            const statusEl = document.getElementById('rectExperimentStatus');
+            if (!statusEl) return;
+            rectExperimentUiState.active = active;
+            if (active) {
+                statusEl.innerHTML = `状态: <span style="color: #2f7f6f;">进行中</span>${detail ? ' | ' + detail : ''}`;
+            } else {
+                statusEl.innerHTML = `状态: <span style="color: #cc6a5c;">未启用</span>${detail ? ' | ' + detail : ''}`;
+            }
+        }
+
+        function triggerRectangleDownload(url, filename) {
+            if (!url) return;
+            const link = document.createElement('a');
+            link.href = url;
+            if (filename) link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        async function startRectangleExperiment() {
+            const speedInput = document.getElementById('rectSpeed');
+            const speed = speedInput ? parseFloat(speedInput.value) : 0.2;
+            if (isNaN(speed) || speed <= 0) {
+                showMessage('请输入有效速度', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/formation/rectangle/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ speed })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    rectExperimentUiState.lastDownloaded = new Set();
+                    updateRectExperimentStatus(true, `领航者: ${result.leader_id.replace('CAR', 'R#')}`);
+                    showMessage(result.message, 'success');
+                } else {
+                    showMessage(result.error || '启动失败', 'error');
+                }
+            } catch (error) {
+                console.error('启动矩形轨迹实验失败:', error);
+                showMessage('启动矩形轨迹实验失败', 'error');
+            }
+        }
+
+        async function stopRectangleExperiment() {
+            try {
+                const response = await fetch('/api/formation/rectangle/stop', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const result = await response.json();
+                if (result.success) {
+                    const files = Array.isArray(result.files) ? result.files : [];
+                    updateRectExperimentStatus(false, files.length ? `已保存 ${files.length} 文件` : '已保存');
+                    showMessage(result.message, 'success');
+                    const urls = Array.isArray(result.download_urls) ? result.download_urls : [];
+                    files.forEach((fileName, index) => {
+                        if (rectExperimentUiState.lastDownloaded.has(fileName)) return;
+                        const url = urls[index];
+                        rectExperimentUiState.lastDownloaded.add(fileName);
+                        if (url) triggerRectangleDownload(url, fileName);
+                    });
+                } else {
+                    showMessage(result.error || '停止失败', 'error');
+                }
+            } catch (error) {
+                console.error('停止矩形轨迹实验失败:', error);
+                showMessage('停止矩形轨迹实验失败', 'error');
+            }
+        }
+
+        async function getRectangleExperimentStatus() {
+            try {
+                const response = await fetch('/api/formation/rectangle/status');
+                const status = await response.json();
+                if (status.active) {
+                    updateRectExperimentStatus(true, `领航者: ${String(status.leader_id || '').replace('CAR', 'R#')}`);
+                } else {
+                    const files = Array.isArray(status.files) ? status.files : [];
+                    updateRectExperimentStatus(false, status.last_error ? `原因: ${status.last_error}` : (files.length ? `已保存 ${files.length} 文件` : ''));
+                    const urls = Array.isArray(status.download_urls) ? status.download_urls : [];
+                    files.forEach((fileName, index) => {
+                        if (rectExperimentUiState.lastDownloaded.has(fileName)) return;
+                        const url = urls[index];
+                        rectExperimentUiState.lastDownloaded.add(fileName);
+                        if (url) triggerRectangleDownload(url, fileName);
+                    });
+                }
+            } catch (error) {
+                console.error('获取矩形实验状态失败:', error);
+            }
+        }
+
         function buildReconstructOptions(selectedId = '') {
             const connectedCars = cars.filter(car => car.connected).map(car => car.id);
             const options = connectedCars.map(carId => {
@@ -3936,6 +4065,8 @@
             setInterval(getTopologyStatus, 5000);
             getReconstructStatus();
             setInterval(getReconstructStatus, 500);
+            getRectangleExperimentStatus();
+            setInterval(getRectangleExperimentStatus, 1000);
             setInterval(fetchVisionImage, 100);
             applyDefaultReconstructOrder();
 

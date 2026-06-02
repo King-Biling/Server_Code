@@ -27,7 +27,7 @@ except Exception as e:
     VISION_CONFIG = {}
     print(f"⚠️ 本地视觉模块导入失败: {e}")
 # 增加导入 get_formation_info
-from formation_controller import formation_bp, init_formation_controller, get_formation_info
+from formation_controller import formation_bp, init_formation_controller, get_formation_info, get_rectangle_experiment_info
 
 def _configure_utf8_console():
     """尽量让 Windows 控制台和 Python 标准输出统一使用 UTF-8。"""
@@ -1896,6 +1896,10 @@ def control_car_position():
     formation_info = get_formation_info()
     if formation_info.get('enabled'):
         return jsonify({'success': False, 'error': '编队执行中，已锁定单车独立控制！'})
+
+    rect_info = get_rectangle_experiment_info()
+    if rect_info.get('active'):
+        return jsonify({'success': False, 'error': '矩形轨迹实验进行中，已锁定单车位置控制！'})
         
     data = request.json
     car_id = data.get('car_id')
@@ -2218,6 +2222,10 @@ def control_car_velocity():
     formation_info = get_formation_info()
     if formation_info.get('enabled') and car_id != formation_info.get('leader'):
         return jsonify({'success': False, 'error': '编队执行中，仅允许遥控领航者！'})
+
+    rect_info = get_rectangle_experiment_info()
+    if rect_info.get('active'):
+        return jsonify({'success': False, 'error': '矩形轨迹实验进行中，已锁定遥控！'})
         
     vx = data.get('vx', 0.0)
     vy = data.get('vy', 0.0)

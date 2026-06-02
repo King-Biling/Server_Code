@@ -1,6 +1,11 @@
+import csv
 import json
+import math
+import os
+import threading
 import time
-from flask import Blueprint, request, jsonify
+from datetime import datetime
+from flask import Blueprint, request, jsonify, send_file
 
 formation_bp = Blueprint('formation', __name__)
 
@@ -10,6 +15,37 @@ formation_type = "line"  # line, Diamond, square, custom
 formation_params = {}
 cars_dict = {} 
 udp_server = None 
+
+RECT_POINTS = [
+    {"x": 1.40, "y": 1.70, "yaw": 0.0},
+    {"x": 3.40, "y": 1.70, "yaw": 90.0},
+    {"x": 3.40, "y": 4.90, "yaw": 180.0},
+    {"x": 1.40, "y": 4.90, "yaw": -90.0}
+]
+RECT_DISTANCE_THRESHOLD = 0.15
+RECT_YAW_THRESHOLD_DEG = 5.0
+RECT_COMMAND_HZ = 10.0
+RECT_DATA_HZ = 10.0
+RECT_LOG_DIRNAME = "logs"
+
+rect_lock = threading.Lock()
+rect_state = {
+    "active": False,
+    "stop_requested": False,
+    "phase": "idle",
+    "leader_id": None,
+    "start_time": None,
+    "idx": None,
+    "segment_idx": 0,
+    "speed": 0.2,
+    "last_cmd": {},
+    "records": {},
+    "thread": None,
+    "data_thread": None,
+    "finalized": False,
+    "last_files": [],
+    "last_error": None
+}
 
 FORMATION_CONFIGS = {
     "line": {
@@ -54,11 +90,273 @@ def init_formation_controller(cars, server):
     udp_server = server
     print("🔧 编队控制器初始化完成")
 
+def _ensure_rect_log_dir():
+    log_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), RECT_LOG_DIRNAME))
+    os.makedirs(log_dir, exist_ok=True)
+    return log_dir
+
+def _wrap_angle_deg(angle):
+    while angle > 180.0:
+        angle -= 360.0
+    while angle < -180.0:
+        angle += 360.0
+    return angle
+
+def _get_leader_pose(leader_id):
+    if not leader_id or leader_id not in cars_dict:
+        return None
+    car = cars_dict.get(leader_id)
+    if not car or not car.connected:
+        return None
+    return car.position.get("x", 0.0), car.position.get("y", 0.0), car.heading
+
+def _send_rectangle_command(leader_id, vx, vy, target_yaw):
+    if not udp_server:
+        return False
+    cmd = f"[T,{leader_id},{vx:.3f},{vy:.3f},{target_yaw:.1f}]"
+    return udp_server.send_to_car(leader_id, cmd)
+
+def _update_rect_last_cmd(car_id, vx, vy):
+    with rect_lock:
+        rect_state["last_cmd"][car_id] = {"vx": float(vx), "vy": float(vy)}
+
+def _select_nearest_point(x, y):
+    best_idx = 0
+    best_dist = None
+    for idx, point in enumerate(RECT_POINTS):
+        dx = point["x"] - x
+        dy = point["y"] - y
+        dist = (dx * dx + dy * dy) ** 0.5
+        if best_dist is None or dist < best_dist:
+            best_dist = dist
+            best_idx = idx
+    return best_idx
+
+def _finalize_rect_experiment(reason=None):
+    with rect_lock:
+        if rect_state["finalized"]:
+            return list(rect_state.get("last_files", []))
+        rect_state["finalized"] = True
+        rect_state["active"] = False
+        rect_state["stop_requested"] = False
+        rect_state["phase"] = "idle"
+        if reason in ("completed", "manual_stop", "stopped"):
+            rect_state["last_error"] = None
+        else:
+            rect_state["last_error"] = reason
+        records_by_car = dict(rect_state["records"])
+
+    log_dir = _ensure_rect_log_dir()
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    saved_paths = []
+
+    for car_id, rows in records_by_car.items():
+        if not rows:
+            continue
+        filename = f"rect_traj_{car_id}_{timestamp}.csv"
+        save_path = os.path.join(log_dir, filename)
+        try:
+            with open(save_path, "w", newline="", encoding="utf-8") as csv_file:
+                writer = csv.writer(csv_file)
+                writer.writerow(["timestamp", "car_id", "x", "y", "yaw", "set_vx", "set_vy"])
+                for row in rows:
+                    writer.writerow(row)
+            saved_paths.append(save_path)
+        except Exception as exc:
+            with rect_lock:
+                rect_state["last_error"] = str(exc)
+            return None
+
+    with rect_lock:
+        rect_state["last_files"] = list(saved_paths)
+        rect_state["records"] = {}
+        rect_state["last_cmd"] = {}
+
+    return list(saved_paths)
+
+def _rect_data_loop():
+    interval = 1.0 / RECT_DATA_HZ
+    while True:
+        with rect_lock:
+            if not rect_state["active"]:
+                break
+            last_cmd_snapshot = dict(rect_state["last_cmd"])
+        current_ts = time.time()
+        ts_str = datetime.fromtimestamp(current_ts).isoformat(timespec="milliseconds")
+        rows_by_car = {}
+        for car_id, car in list(cars_dict.items()):
+            if not car.connected:
+                continue
+            cmd = last_cmd_snapshot.get(car_id, {"vx": 0.0, "vy": 0.0})
+            rows_by_car.setdefault(car_id, []).append([
+                ts_str,
+                car_id,
+                round(car.position.get("x", 0.0), 4),
+                round(car.position.get("y", 0.0), 4),
+                round(car.heading, 2),
+                round(cmd["vx"], 4),
+                round(cmd["vy"], 4)
+            ])
+        if rows_by_car:
+            with rect_lock:
+                for car_id, rows in rows_by_car.items():
+                    rect_state["records"].setdefault(car_id, []).extend(rows)
+        time.sleep(interval)
+
+def _rect_state_loop():
+    interval = 1.0 / RECT_COMMAND_HZ
+    while True:
+        with rect_lock:
+            if not rect_state["active"]:
+                break
+            if rect_state["stop_requested"]:
+                break
+            leader_id = rect_state["leader_id"]
+            phase = rect_state["phase"]
+            idx = rect_state["idx"]
+            segment_idx = rect_state["segment_idx"]
+            speed = rect_state["speed"]
+
+        pose = _get_leader_pose(leader_id)
+        if not pose:
+            _finalize_rect_experiment("leader_disconnected")
+            break
+        x, y, yaw = pose
+
+        yaw_rad = math.radians(yaw)
+        cos_yaw = math.cos(yaw_rad)
+        sin_yaw = math.sin(yaw_rad)
+
+        vx, vy = 0.0, 0.0
+        target_yaw = yaw
+
+        abs_speed = abs(speed)
+
+        if phase == "homing":
+            target = RECT_POINTS[idx]
+            dx = target["x"] - x
+            dy = target["y"] - y
+            dist = (dx * dx + dy * dy) ** 0.5
+            if dist < RECT_DISTANCE_THRESHOLD:
+                with rect_lock:
+                    rect_state["phase"] = "rotate"
+                    rect_state["segment_idx"] = 0
+            else:
+                if dist > 0:
+                    forward = cos_yaw * dx + sin_yaw * dy
+                    left = -sin_yaw * dx + cos_yaw * dy
+                    vx = abs_speed * forward / dist
+                    vy = abs_speed * left / dist
+        elif phase == "rotate":
+            current = RECT_POINTS[(idx + segment_idx) % len(RECT_POINTS)]
+            target_yaw = current["yaw"]
+            yaw_error = _wrap_angle_deg(target_yaw - yaw)
+            if abs(yaw_error) <= RECT_YAW_THRESHOLD_DEG:
+                with rect_lock:
+                    rect_state["phase"] = "move"
+            else:
+                vx, vy = 0.0, 0.0
+        elif phase == "move":
+            current = RECT_POINTS[(idx + segment_idx) % len(RECT_POINTS)]
+            target_yaw = current["yaw"]
+            next_point = RECT_POINTS[(idx + segment_idx + 1) % len(RECT_POINTS)]
+            dx = next_point["x"] - x
+            dy = next_point["y"] - y
+            dist = (dx * dx + dy * dy) ** 0.5
+            if dist < RECT_DISTANCE_THRESHOLD:
+                next_segment = segment_idx + 1
+                if next_segment >= len(RECT_POINTS):
+                    _finalize_rect_experiment("completed")
+                    break
+                with rect_lock:
+                    rect_state["segment_idx"] = next_segment
+                    rect_state["phase"] = "rotate"
+            else:
+                if dist > 0:
+                    forward = cos_yaw * dx + sin_yaw * dy
+                    left = -sin_yaw * dx + cos_yaw * dy
+                    vx = abs_speed * forward / dist
+                    vy = abs_speed * left / dist
+
+        _update_rect_last_cmd(leader_id, vx, vy)
+        _send_rectangle_command(leader_id, vx, vy, target_yaw)
+        time.sleep(interval)
+
+    _finalize_rect_experiment("stopped")
+
+def _start_rectangle_experiment(speed):
+    leader_id = formation_leader
+    pose = _get_leader_pose(leader_id)
+    if not pose:
+        return False, "leader_unavailable"
+
+    x, y, _ = pose
+    idx = _select_nearest_point(x, y)
+
+    with rect_lock:
+        if rect_state["active"]:
+            return False, "already_running"
+        rect_state["active"] = True
+        rect_state["stop_requested"] = False
+        rect_state["phase"] = "homing"
+        rect_state["leader_id"] = leader_id
+        rect_state["start_time"] = time.time()
+        rect_state["idx"] = idx
+        rect_state["segment_idx"] = 0
+        rect_state["speed"] = speed
+        rect_state["records"] = {}
+        rect_state["last_cmd"] = {}
+        rect_state["finalized"] = False
+        rect_state["last_files"] = []
+        rect_state["last_error"] = None
+
+    rect_thread = threading.Thread(target=_rect_state_loop, daemon=True)
+    data_thread = threading.Thread(target=_rect_data_loop, daemon=True)
+    with rect_lock:
+        rect_state["thread"] = rect_thread
+        rect_state["data_thread"] = data_thread
+    rect_thread.start()
+    data_thread.start()
+    return True, {"idx": idx, "leader_id": leader_id}
+
+def _stop_rectangle_experiment():
+    with rect_lock:
+        if not rect_state["active"]:
+            return False, "not_running"
+        rect_state["stop_requested"] = True
+        leader_id = rect_state["leader_id"]
+
+    pose = _get_leader_pose(leader_id)
+    if pose:
+        _, _, yaw = pose
+        _send_rectangle_command(leader_id, 0.0, 0.0, yaw)
+        _update_rect_last_cmd(leader_id, 0.0, 0.0)
+
+    deadline = time.time() + 2.5
+    while time.time() < deadline:
+        with rect_lock:
+            if not rect_state["active"]:
+                break
+        time.sleep(0.05)
+
+    save_paths = _finalize_rect_experiment("manual_stop")
+    return True, {"save_paths": save_paths or []}
+
+def get_rectangle_experiment_info():
+    with rect_lock:
+        return {
+            "active": rect_state["active"],
+            "leader_id": rect_state["leader_id"],
+            "phase": rect_state["phase"],
+            "last_files": list(rect_state["last_files"]),
+            "last_error": rect_state["last_error"]
+        }
+
 def send_formation_command(car_id, command):
     if udp_server:
         return udp_server.send_to_car_reliable(car_id, command, max_retries=4)
     else:
-        print(f"❌ UDP服务器未初始化，无法发送指令给 {car_id}")
+        print(f"⚠️ UDP服务器未初始化，无法发送指令给 {car_id}")
         return False
 
 @formation_bp.route('/api/formation/start', methods=['POST'])
@@ -78,7 +376,7 @@ def start_formation():
     old_leader = formation_leader
     formation_leader = leader_id
     formation_enabled = True
-    print(f"🎯 直接启动编队，不发送停止指令")
+    print("🎯 直接启动编队，不发送停止指令")
     
     success_count = 0
     total_cars = 0
@@ -153,6 +451,68 @@ def get_formation_status():
         'formation_leader': formation_leader,
         'formation_type': formation_type
     })
+
+@formation_bp.route('/api/formation/rectangle/start', methods=['POST'])
+def start_rectangle_experiment():
+    data = request.json or {}
+    speed = float(data.get('speed', 0.2))
+
+    if not formation_leader:
+        return jsonify({'success': False, 'error': '未设置领航者'}), 400
+
+    with rect_lock:
+        if rect_state["active"]:
+            return jsonify({'success': False, 'error': '矩形实验进行中'}), 400
+
+    speed = abs(speed)
+    speed = max(0.05, min(speed, 0.7))
+    success, result = _start_rectangle_experiment(speed)
+    if not success:
+        return jsonify({'success': False, 'error': result}), 400
+
+    return jsonify({
+        'success': True,
+        'message': '矩形轨迹实验已启动',
+        'leader_id': result["leader_id"],
+        'start_idx': result["idx"],
+        'speed': speed
+    })
+
+@formation_bp.route('/api/formation/rectangle/stop', methods=['POST'])
+def stop_rectangle_experiment():
+    success, result = _stop_rectangle_experiment()
+    if not success:
+        return jsonify({'success': False, 'error': result}), 400
+
+    save_paths = result.get("save_paths", [])
+    files = [os.path.basename(path) for path in save_paths if path]
+    download_urls = [f"/api/formation/rectangle/download/{name}" for name in files]
+
+    return jsonify({
+        'success': True,
+        'message': '矩形轨迹实验已停止并保存',
+        'files': files,
+        'download_urls': download_urls
+    })
+
+@formation_bp.route('/api/formation/rectangle/status')
+def get_rectangle_experiment_status():
+    info = get_rectangle_experiment_info()
+    files = [os.path.basename(path) for path in info.get("last_files", []) if path]
+    download_urls = [f"/api/formation/rectangle/download/{name}" for name in files]
+    info.update({'download_urls': download_urls, 'files': files})
+    return jsonify(info)
+
+@formation_bp.route('/api/formation/rectangle/download/<filename>')
+def download_rectangle_file(filename):
+    safe_name = os.path.basename(filename)
+    if not safe_name:
+        return jsonify({'success': False, 'error': '无效文件名'}), 400
+    log_dir = _ensure_rect_log_dir()
+    file_path = os.path.join(log_dir, safe_name)
+    if not os.path.exists(file_path):
+        return jsonify({'success': False, 'error': '文件不存在'}), 404
+    return send_file(file_path, as_attachment=True, download_name=safe_name)
 
 @formation_bp.route('/api/formation/custom', methods=['POST'])
 def set_custom_formation():
@@ -229,7 +589,7 @@ def update_formation_offsets():
     success_rate = (success_count / total_cars * 100) if total_cars > 0 else 0
     return jsonify({
         'success': True,
-        'message': f'编队偏移量已更新，通知了 {success_count}/{total_cars} 辆小车',
+        'message': f'编队偏移量已更新，通知 {success_count}/{total_cars} 辆小车',
         'updated_cars': success_count,
         'success_rate': f'{success_rate:.1f}%'
     })
