@@ -1171,6 +1171,9 @@ def _vision_loop():
                 if cap:
                     cap.release()
                     cap = None
+                    # 【核心修复】：增加强制物理冷却时间，给底层USB总线释放带宽和端点留出时间
+                    print(f"♻️ 释放摄像头，等待 USB 总线重置...")
+                    time.sleep(1.2)
                 active_car = target_car
                 with vision_lock:
                     vision_state["active_car_id"] = active_car

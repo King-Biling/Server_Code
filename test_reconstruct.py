@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-ÖØ¹¹¹¦ÄÜ²âÊÔ½Å±¾
-²âÊÔ·şÎñÆ÷¶ËµÄÖØ¹¹¹¦ÄÜÊÇ·ñÕı³£¹¤×÷
+é‡æ„åŠŸèƒ½æµ‹è¯•è„šæœ¬
+æµ‹è¯•æœåŠ¡å™¨ç«¯çš„é‡æ„åŠŸèƒ½æ˜¯å¦æ­£å¸¸å·¥ä½œ
 """
 
 import sys
 import os
 
-# Ìí¼Óµ±Ç°Ä¿Â¼µ½PythonÂ·¾¶
+# æ·»åŠ å½“å‰ç›®å½•åˆ°Pythonè·¯å¾„
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from web_car_server import (
@@ -19,82 +19,82 @@ from web_car_server import (
 )
 
 def test_reconstruct_commands():
-    """²âÊÔÖØ¹¹Ïà¹ØÃüÁî´¦Àí"""
-    print("? ¿ªÊ¼²âÊÔÖØ¹¹¹¦ÄÜ...")
+    """æµ‹è¯•é‡æ„ç›¸å…³å‘½ä»¤å¤„ç†"""
+    print("? å¼€å§‹æµ‹è¯•é‡æ„åŠŸèƒ½...")
     
-    # ÖØÖÃÖØ¹¹×´Ì¬
+    # é‡ç½®é‡æ„çŠ¶æ€
     _reset_reconstruct_state()
     
-    # ²âÊÔ1: ×¼±¸Íê³ÉÏûÏ¢
-    print("\n1. ²âÊÔ PREP_OK ÏûÏ¢´¦Àí")
+    # æµ‹è¯•1: å‡†å¤‡å®Œæˆæ¶ˆæ¯
+    print("\n1. æµ‹è¯• PREP_OK æ¶ˆæ¯å¤„ç†")
     test_message = "[R,PREP_OK,CAR1]"
     result = handle_reconstruct_report(test_message)
-    print(f"   PREP_OK ´¦Àí½á¹û: {result}")
+    print(f"   PREP_OK å¤„ç†ç»“æœ: {result}")
     
-    # ²âÊÔ2: Æ´½ÓÍê³ÉÏûÏ¢
-    print("\n2. ²âÊÔ STEP_OK ÏûÏ¢´¦Àí")
+    # æµ‹è¯•2: æ‹¼æ¥å®Œæˆæ¶ˆæ¯
+    print("\n2. æµ‹è¯• STEP_OK æ¶ˆæ¯å¤„ç†")
     test_message = "[R,STEP_OK,CAR1]"
     result = handle_reconstruct_report(test_message)
-    print(f"   STEP_OK ´¦Àí½á¹û: {result}")
+    print(f"   STEP_OK å¤„ç†ç»“æœ: {result}")
     
-    # ²âÊÔ3: ·ÖÀëÍê³ÉÏûÏ¢
-    print("\n3. ²âÊÔ SEP_OK ÏûÏ¢´¦Àí")
+    # æµ‹è¯•3: åˆ†ç¦»å®Œæˆæ¶ˆæ¯
+    print("\n3. æµ‹è¯• SEP_OK æ¶ˆæ¯å¤„ç†")
     test_message = "[R,SEP_OK,CAR1]"
     result = handle_reconstruct_report(test_message)
-    print(f"   SEP_OK ´¦Àí½á¹û: {result}")
+    print(f"   SEP_OK å¤„ç†ç»“æœ: {result}")
     
-    # ²âÊÔ4: Í¼ÏñÔªĞÅÏ¢ÏûÏ¢
-    print("\n4. ²âÊÔ IMG_META ÏûÏ¢´¦Àí")
+    # æµ‹è¯•4: å›¾åƒå…ƒä¿¡æ¯æ¶ˆæ¯
+    print("\n4. æµ‹è¯• IMG_META æ¶ˆæ¯å¤„ç†")
     test_message = "[R,IMG_META,CAR1,SEQ=123456,W=640,H=480,FMT=0,LEN=102400]"
     result = handle_reconstruct_report(test_message)
-    print(f"   IMG_META ´¦Àí½á¹û: {result}")
+    print(f"   IMG_META å¤„ç†ç»“æœ: {result}")
     
-    # ²âÊÔ5: Í¼Ïñ·ÖÆ¬ÏûÏ¢£¨Ä£Äâ£©
-    print("\n5. ²âÊÔ IMG_CHUNK ÏûÏ¢´¦Àí")
-    # ´´½¨Ä£ÄâµÄ¶ş½øÖÆÊı¾İ
+    # æµ‹è¯•5: å›¾åƒåˆ†ç‰‡æ¶ˆæ¯ï¼ˆæ¨¡æ‹Ÿï¼‰
+    print("\n5. æµ‹è¯• IMG_CHUNK æ¶ˆæ¯å¤„ç†")
+    # åˆ›å»ºæ¨¡æ‹Ÿçš„äºŒè¿›åˆ¶æ•°æ®
     header = "[R,IMG_CHUNK,CAR1,SEQ=123456,IDX=0,TOT=10,SZ=10240]"
-    binary_data = b"x" * 10240  # Ä£ÄâÍ¼ÏñÊı¾İ
+    binary_data = b"x" * 10240  # æ¨¡æ‹Ÿå›¾åƒæ•°æ®
     test_message = header + "\n" + binary_data.decode('latin-1')
     result = handle_reconstruct_report(test_message)
-    print(f"   IMG_CHUNK ´¦Àí½á¹û: {result}")
+    print(f"   IMG_CHUNK å¤„ç†ç»“æœ: {result}")
     
-    # ÏÔÊ¾ÖØ¹¹×´Ì¬
-    print("\n? ÖØ¹¹×´Ì¬:")
+    # æ˜¾ç¤ºé‡æ„çŠ¶æ€
+    print("\n? é‡æ„çŠ¶æ€:")
     with reconstruct_lock:
-        print(f"   »îÔ¾: {reconstruct_state['active']}")
-        print(f"   ½×¶Î: {reconstruct_state['phase']}")
-        print(f"   Ë³Ğò: {reconstruct_state['order']}")
-        print(f"   ÒÑ×¼±¸: {list(reconstruct_state['prepared'].keys())}")
-        print(f"   µÈ´ı³µÁ¾: {reconstruct_state['waiting_car_id']}")
-        print(f"   ÖÆµ¼¿ØÖÆÆ÷: {list(reconstruct_state['guide_controllers'].keys())}")
+        print(f"   æ´»è·ƒ: {reconstruct_state['active']}")
+        print(f"   é˜¶æ®µ: {reconstruct_state['phase']}")
+        print(f"   é¡ºåº: {reconstruct_state['order']}")
+        print(f"   å·²å‡†å¤‡: {list(reconstruct_state['prepared'].keys())}")
+        print(f"   ç­‰å¾…è½¦è¾†: {reconstruct_state['waiting_car_id']}")
+        print(f"   åˆ¶å¯¼æ§åˆ¶å™¨: {list(reconstruct_state['guide_controllers'].keys())}")
     
-    print("\n? ÖØ¹¹¹¦ÄÜ²âÊÔÍê³É!")
+    print("\n? é‡æ„åŠŸèƒ½æµ‹è¯•å®Œæˆ!")
 
 def test_guide_controller():
-    """²âÊÔÖÆµ¼¿ØÖÆÆ÷"""
-    print("\n? ²âÊÔÖÆµ¼¿ØÖÆÆ÷...")
+    """æµ‹è¯•åˆ¶å¯¼æ§åˆ¶å™¨"""
+    print("\n? æµ‹è¯•åˆ¶å¯¼æ§åˆ¶å™¨...")
     
     from web_car_server import GuideController
     
-    # ´´½¨ÖÆµ¼¿ØÖÆÆ÷
+    # åˆ›å»ºåˆ¶å¯¼æ§åˆ¶å™¨
     controller = GuideController("CAR1")
     
-    # ²âÊÔÎ»×ËÎó²î¸üĞÂ
+    # æµ‹è¯•ä½å§¿è¯¯å·®æ›´æ–°
     controller.update_pose_error(0.1, 0.05, 0.02)
-    print("? Î»×ËÎó²î¸üĞÂ²âÊÔÍ¨¹ı")
+    print("? ä½å§¿è¯¯å·®æ›´æ–°æµ‹è¯•é€šè¿‡")
     
-    # ²âÊÔËÙ¶È¼ÆËã
+    # æµ‹è¯•é€Ÿåº¦è®¡ç®—
     vx, vy, vz, done = controller._calculate_guide_velocity()
-    print(f"? ËÙ¶È¼ÆËã²âÊÔ: vx={vx:.3f}, vy={vy:.3f}, vz={vz:.3f}, done={done}")
+    print(f"? é€Ÿåº¦è®¡ç®—æµ‹è¯•: vx={vx:.3f}, vy={vy:.3f}, vz={vz:.3f}, done={done}")
     
-    print("? ÖÆµ¼¿ØÖÆÆ÷²âÊÔÍê³É!")
+    print("? åˆ¶å¯¼æ§åˆ¶å™¨æµ‹è¯•å®Œæˆ!")
 
 if __name__ == "__main__":
     try:
         test_reconstruct_commands()
         test_guide_controller()
-        print("\n? ËùÓĞ²âÊÔÍ¨¹ı!")
+        print("\n? æ‰€æœ‰æµ‹è¯•é€šè¿‡!")
     except Exception as e:
-        print(f"? ²âÊÔÊ§°Ü: {e}")
+        print(f"? æµ‹è¯•å¤±è´¥: {e}")
         import traceback
         traceback.print_exc()
