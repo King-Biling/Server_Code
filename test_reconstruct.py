@@ -20,7 +20,7 @@ from web_car_server import (
 
 def test_reconstruct_commands():
     """测试重构相关命令处理"""
-    print("? 开始测试重构功能...")
+    print(" 开始测试重构功能...")
     
     # 重置重构状态
     _reset_reconstruct_state()

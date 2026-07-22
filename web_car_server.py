@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 import socket
 import threading
 import time
@@ -8,11 +8,12 @@ import os
 import csv
 import base64
 import sys
+import traceback
 import numpy as np
 import cv2
 import gzip
 from datetime import datetime
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, Response
 from flask_cors import CORS
 # 本地视觉引擎
 VISION_MODULE_DIR = os.path.join(os.path.dirname(__file__), "Car_vision_system")
@@ -25,7 +26,7 @@ except Exception as e:
     DeviceBinder = None
     PoseEstimator = None
     VISION_CONFIG = {}
-    print(f"⚠️ 本地视觉模块导入失败: {e}")
+    print(f" 本地视觉模块导入失败: {e}")
 # 增加导入 get_formation_info
 from formation_controller import formation_bp, init_formation_controller, get_formation_info, get_rectangle_experiment_info
 
@@ -72,6 +73,7 @@ reconstruct_state = {
     "event_log": [],
     "latest_frames": {},
     "guide_controllers": {},
+    "guide_velocity": {},   # 每车最新制导速度，供监控画面叠加
     "guide_frequency": 20,  # Hz
     "guide_timeout": 0.3,   # 秒
     "target_distance": 5.0, # 5cm
@@ -110,7 +112,10 @@ GUIDE_P_GAIN_X = 0.0035
 GUIDE_P_GAIN_Y = 0.0035
 GUIDE_P_GAIN_YAW = 0.03  # 大幅降低航向角P增益（因为输入是度数）
 GUIDE_MAX_VZ = 0.4       # 限制最大旋转角速度 (rad/s)
-GUIDE_FUNNEL_X_THRESHOLD = 15.0  # cm
+# 漏斗解耦阈值：横向偏差(cm)或航向偏差(deg)超过阈值时，先整列、暂缓前进。
+# 注意判定对象必须是“横向 error_y / 航向 yaw”，而不是“纵向 error_x”，
+# 否则一开始离得远(纵向大)就会永远禁止前进，导致小车停在准备位不动。
+GUIDE_FUNNEL_Y_THRESHOLD = 4.0  # cm（横向）
 GUIDE_FUNNEL_YAW_THRESHOLD = 4.0  # deg
 
 # AprilTag参数
@@ -150,7 +155,7 @@ def _write_persistent_event(event_type, car_id=None, payload=None):
                 f.write(line + "\n")
     except Exception as e:
         # 持久化日志失败不阻塞主流程，仅在控制台记录
-        print(f"⚠️ 写持久化日志失败: {e}")
+        print(f" 写持久化日志失败: {e}")
 
 def _write_readable_log(event_type, car_id=None, **kwargs):
     """以纯文本友好格式追加日志（支持记事本直接打开查看）。"""
@@ -205,11 +210,11 @@ def _archive_current_log():
                     if not chunk:
                         break
                     f_out.write(chunk)
-        print(f"📥 自动归档日志: {dst}")
+        print(f" 自动归档日志: {dst}")
         _write_persistent_event("archive", None, {"file": os.path.basename(dst)})
         return True, dst
     except Exception as e:
-        print(f"⚠️ 自动归档失败: {e}")
+        print(f" 自动归档失败: {e}")
         return False, str(e)
 
 def _archive_worker_loop(interval_s=LOG_ARCHIVE_INTERVAL_S):
@@ -217,7 +222,7 @@ def _archive_worker_loop(interval_s=LOG_ARCHIVE_INTERVAL_S):
         try:
             _archive_current_log()
         except Exception as e:
-            print(f"❌ 归档守护错误: {e}")
+            print(f" 归档守护错误: {e}")
         time.sleep(interval_s)
 
 UDP_HOST = '0.0.0.0'
@@ -252,7 +257,7 @@ def get_subnet_broadcast():
                         continue  
                     if 'broadcast' in addr_info:
                         broadcast_addr = addr_info['broadcast']
-                        print(f"🌐 发现广播地址: {broadcast_addr} (接口: {interface})")
+                        print(f" 发现广播地址: {broadcast_addr} (接口: {interface})")
                         return broadcast_addr
                     netmask = addr_info.get('netmask', '255.255.255.0')
                     ip_parts = list(map(int, ip.split('.')))
@@ -261,16 +266,16 @@ def get_subnet_broadcast():
                     for i in range(4):
                         broadcast_parts.append(str(ip_parts[i] | (~mask_parts[i] & 0xFF)))
                     calculated_broadcast = '.'.join(broadcast_parts)
-                    print(f"🌐 计算得到广播地址: {calculated_broadcast} (接口: {interface})")
+                    print(f" 计算得到广播地址: {calculated_broadcast} (接口: {interface})")
                     return calculated_broadcast
         fallback_broadcast = "192.168.31.255"
-        print(f"⚠️ 无法自动获取广播地址，使用默认: {fallback_broadcast}")
+        print(f" 无法自动获取广播地址，使用默认: {fallback_broadcast}")
         return fallback_broadcast
     except ImportError:
-        print("⚠️ 未安装netifaces库，使用默认广播地址")
+        print(" 未安装netifaces库，使用默认广播地址")
         return "192.168.31.255"
     except Exception as e:
-        print(f"❌ 获取广播地址失败: {e}，使用默认广播地址")
+        print(f" 获取广播地址失败: {e}，使用默认广播地址")
         return "192.168.31.255"
 
 class Car:
@@ -306,6 +311,9 @@ class GuideController:
         self.target_reached = False
         self.last_pose_error = None
         self.last_vision_time = 0
+        self.last_has_tag = False          # 最新一帧是否真正检测到 AprilTag
+        self.last_tag_time = 0             # 最近一次“检测到 Tag”的时间
+        self.reached_hold_count = 0        # 到达条件连续成立的帧数（去抖，防止单帧误判 DONE）
         self.guide_thread = None
         
     def start_guidance(self):
@@ -327,6 +335,11 @@ class GuideController:
         
         while self.active:
             try:
+                if self.target_reached:
+                    self._send_guide_command(0, 0, 0, done=1)
+                    time.sleep(guide_interval)
+                    continue
+
                 # 没有可用位姿时仍保持刷新，避免车端超时
                 if self.last_pose_error is None:
                     self._send_guide_command(0, 0, 0, done=0)
@@ -339,41 +352,52 @@ class GuideController:
                 # 发送制导指令
                 self._send_guide_command(vx, vy, vz, done)
                 
-                # 如果目标已到达，停止制导
+                # 目标已到达时继续保活发送 DONE=1，等待车端回 STEP_OK 再推进下一辆
                 if done == 1:
                     self.target_reached = True
-                    self.active = False
-                    _advance_reconstruct_assembly(self.car_id)
-                    break
-                    
+                    time.sleep(guide_interval)
+                    continue
+
                 time.sleep(guide_interval)
                 
             except Exception as e:
-                print(f"❌ 制导循环错误 ({self.car_id}): {e}")
+                print(f" 制导循环错误 ({self.car_id}): {e}")
                 time.sleep(guide_interval)
                 
     def _calculate_guide_velocity(self):
         """计算制导速度"""
         if self.last_pose_error is None:
+            self.reached_hold_count = 0
             return 0, 0, 0, 0
 
-        if time.time() - self.last_vision_time > 0.5:
+        # 没有实时视觉（>0.5s 无 Tag）时，绝不判定到达，只保活并停车，
+        # 等待视觉重新锁定。此前的 bug 是无 Tag 时用 error_x=0 误判到达导致假 DONE。
+        if (not self.last_has_tag) or (time.time() - self.last_tag_time > 0.5):
+            self.reached_hold_count = 0
             return 0.0, 0.0, 0.0, 0
 
         error_x, error_y, _ = self.last_pose_error
         yaw_error_deg = _get_front_heading_error(self.car_id)
 
-        # 检查是否到达目标
-        if (abs(error_x) < 10.0 and abs(error_y) < 2.0 and abs(yaw_error_deg) < 2.0):
-            return 0.0, 0.0, 0.0, 1
+        # 检查是否到达目标：必须在“确有 Tag”的前提下，且连续多帧稳定成立才判定 DONE，
+        # 防止单帧抖动误触发。error_x 是到 Tag 的纵向距离(cm)，需大于 0 才是有效锁定。
+        if (0.0 < error_x < 10.0 and abs(error_y) < 2.0 and abs(yaw_error_deg) < 2.0):
+            self.reached_hold_count += 1
+            if self.reached_hold_count >= 3:
+                return 0.0, 0.0, 0.0, 1
+            # 尚未去抖完成，先停车保持，不推进
+            return 0.0, 0.0, 0.0, 0
+        else:
+            self.reached_hold_count = 0
 
         # PID控制（简化版，只有P项）
         vx = GUIDE_P_GAIN_X * error_x # 前进误差直接乘以增益
         vy = GUIDE_P_GAIN_Y * error_y # 横向误差直接乘以增益
         vz = GUIDE_P_GAIN_YAW * yaw_error_deg # 角度误差直接乘以增益
 
-        # 解耦控制：横向/航向未对中时禁止前进
-        if abs(error_x) > GUIDE_FUNNEL_X_THRESHOLD or abs(yaw_error_deg) > GUIDE_FUNNEL_YAW_THRESHOLD:
+        # 漏斗解耦：横向或航向未对中时先整列、暂缓前进（判定对象是横向 error_y / 航向 yaw，
+        # 而非纵向距离 error_x——远处纵向大属于正常，应当前进而不是禁止前进）
+        if abs(error_y) > GUIDE_FUNNEL_Y_THRESHOLD or abs(yaw_error_deg) > GUIDE_FUNNEL_YAW_THRESHOLD:
             vx = 0.0
 
         # 死区抑制
@@ -403,8 +427,12 @@ class GuideController:
         """发送制导指令"""
         # 命名字段格式（推荐）
         cmd = f"[R,GUIDE,{self.car_id},VX={vx:.3f},VY={vy:.3f},VZ={vz:.3f},DONE={done}]"
-        success = udp_server.send_to_car(self.car_id, cmd)
-        
+        # 关键修复：GUIDE 与 STEP 一样改用“子网广播”下发，走与 PREP/ORDER/ASM_START 相同的已验证链路。
+        # 之前 GUIDE 走单播(send_to_car)，即便 STEP 握手成功，制导速度也发不到车端 —— 表现为“车报 ACK
+        # 却一直不动”。GUIDE 为 20Hz 高频，单发即可（丢一帧下一帧立即补上），无需 burst。
+        # 车端 handle_guide 已按 target==自身 过滤，广播安全。broadcast_global_command 内部已重发多次。
+        success = udp_server.broadcast_global_command(cmd)
+
         if success:
             self.last_guide_time = time.time()
             # 记录最后一次下发 GUIDE 时间到全局事件表
@@ -415,6 +443,10 @@ class GuideController:
                     if done == 1:
                         ev["last_guide_done"] = time.time()
                         reconstruct_state["subphase"] = "WAIT_STEP_OK"
+                    # 记录最新制导速度，供监控画面实时叠加显示
+                    reconstruct_state.setdefault("guide_velocity", {})[self.car_id] = {
+                        "vx": vx, "vy": vy, "vz": vz, "done": done, "ts": time.time()
+                    }
             except Exception:
                 pass
             if done == 0:
@@ -422,10 +454,15 @@ class GuideController:
             else:
                 print(f"制导完成 ({self.car_id})")
         
-    def update_pose_error(self, error_x, error_y, error_yaw):
-        """更新位姿误差"""
+    def update_pose_error(self, error_x, error_y, error_yaw, has_tag=True):
+        """更新位姿误差。has_tag=False 表示这一帧没有检测到 AprilTag（不能作为到达依据）。"""
+        now = time.time()
         self.last_pose_error = (error_x, error_y, error_yaw)
-        self.last_vision_time = time.time()
+        self.last_has_tag = bool(has_tag)
+        if has_tag:
+            self.last_tag_time = now
+            self.last_vision_time = now
+        # 注意：无 Tag 时不刷新 last_vision_time，让“视觉超时”保护能够真正生效
 
 
 class PoseSaveSession:
@@ -528,15 +565,15 @@ class UDPServer:
             # PREP/STEP 守护线程（测试阶段停用，防止超时自动流转）
             # prep_watchdog_thread = threading.Thread(target=self._prep_watchdog_loop, daemon=True)
             # prep_watchdog_thread.start()
-            # step_watchdog_thread = threading.Thread(target=self._step_watchdog_loop, daemon=True)
-            # step_watchdog_thread.start()
+            step_watchdog_thread = threading.Thread(target=self._step_watchdog_loop, daemon=True)
+            step_watchdog_thread.start()
 
             if not self.broadcast_server.start():
-                print("❌ 广播服务器启动失败，但UDP服务器继续运行")
+                print(" 广播服务器启动失败，但UDP服务器继续运行")
 
             return True
         except Exception as e:
-            print(f"❌ UDP服务器启动失败: {e}")
+            print(f" UDP服务器启动失败: {e}")
             return False
 
     def _receive_loop(self):
@@ -549,7 +586,7 @@ class UDPServer:
             except BlockingIOError:
                 time.sleep(0.001)
             except Exception as e:
-                print(f"❌ UDP接收错误: {e}")
+                print(f" UDP接收错误: {e}")
                 time.sleep(0.01)
 
     def _handle_car_data(self, data, addr):
@@ -636,11 +673,11 @@ class UDPServer:
                         car = cars[car_id]
                         old_address = car.address
                         if car.address != normalized_addr:
-                            print(f"🔄 小车 {car_id} 地址变化: {car.address} -> {normalized_addr}")
+                            print(f" 小车 {car_id} 地址变化: {car.address} -> {normalized_addr}")
                             car.address = normalized_addr
                             reconnect_event = True
                         if not car.connected:
-                            print(f"🎉 小车 {car_id} 重新连接! 从 {old_address} 到 {normalized_addr}")
+                            print(f" 小车 {car_id} 重新连接! 从 {old_address} 到 {normalized_addr}")
                             car.connected = True
                             reconnect_event = True
                             car.connection_attempts = 0
@@ -662,7 +699,7 @@ class UDPServer:
                         car.velocity = {"vx": vx, "vy": vy, "vz": vz}
                         car.speed = (vx ** 2 + vy ** 2) ** 0.5
                         car.last_update = current_time
-                        print(f"🚗 新小车连接: {car_id} from {normalized_addr}")
+                        print(f" 新小车连接: {car_id} from {normalized_addr}")
                         reconnect_event = True
                         heartbeat_event = True
 
@@ -680,11 +717,11 @@ class UDPServer:
 
                 if reconnect_event:
                     self._send_reconnect_ack(car_id)
-                    print(f"🚀 立即为新连接的小车 {car_id} 触发广播")
+                    print(f" 立即为新连接的小车 {car_id} 触发广播")
                     threading.Thread(target=self._broadcast_all_cars_data, daemon=True).start()
 
         except Exception as e:
-            print(f"❌ 处理小车数据失败: {e}")
+            print(f" 处理小车数据失败: {e}")
 
     def _send_reconnect_ack(self, car_id):
         ack_msg = f"RECONNECT_ACK:{car_id},SERVER_READY"
@@ -692,9 +729,9 @@ class UDPServer:
             with car_lock:
                 if car_id in cars and cars[car_id].connected:
                     self.socket.sendto(ack_msg.encode('utf-8'), cars[car_id].address)
-                    print(f"📤 向 {car_id} 发送重连确认")
+                    print(f" 向 {car_id} 发送重连确认")
         except Exception as e:
-            print(f"❌ 发送重连确认失败: {e}")
+            print(f" 发送重连确认失败: {e}")
 
     def _broadcast_loop(self):
         last_broadcast = 0
@@ -708,13 +745,13 @@ class UDPServer:
                     debug_counter += 1
                     
                     if debug_counter >= 20: 
-                        print(f"📡 广播统计: 成功={success}, 周期={debug_counter}")
+                        print(f" 广播统计: 成功={success}, 周期={debug_counter}")
                         debug_counter = 0
                         
                 sleep_time = max(0.001, broadcast_interval - (time.time() - last_broadcast))
                 time.sleep(sleep_time)
             except Exception as e:
-                print(f"❌ 广播循环错误: {e}")
+                print(f" 广播循环错误: {e}")
                 time.sleep(0.01)
 
     def _split_cars_into_groups(self, car_list):
@@ -779,7 +816,7 @@ class UDPServer:
                     
             return all_success
         except Exception as e:
-            print(f"❌ 广播所有小车数据失败: {e}")
+            print(f" 广播所有小车数据失败: {e}")
             return False
 
     def _get_visible_cars_for_car(self, target_car_id):
@@ -798,10 +835,10 @@ class UDPServer:
                             disconnected_cars.append(car_id)
                             car.connected = False
                 for car_id in disconnected_cars:
-                    print(f"⚠️ 小车 {car_id} 超时未更新，标记为断开")
+                    print(f" 小车 {car_id} 超时未更新，标记为断开")
                 time.sleep(2.0)
             except Exception as e:
-                print(f"❌ 健康检查错误: {e}")
+                print(f" 健康检查错误: {e}")
                 time.sleep(1.0)
 
     def _cleanup_loop(self):
@@ -817,10 +854,10 @@ class UDPServer:
                     with car_lock:
                         if car_id in cars:
                             del cars[car_id]
-                            print(f"🗑️ 清理长时间离线小车: {car_id}")
+                            print(f" 清理长时间离线小车: {car_id}")
                 time.sleep(10.0)
             except Exception as e:
-                print(f"❌ 清理循环错误: {e}")
+                print(f" 清理循环错误: {e}")
                 time.sleep(1.0)
 
     def _prep_watchdog_loop(self):
@@ -895,7 +932,7 @@ class UDPServer:
 
                 time.sleep(0.5)
             except Exception as e:
-                print(f"❌ PREP 守护线程错误: {e}")
+                print(f" PREP 守护线程错误: {e}")
                 time.sleep(0.5)
 
     def _step_watchdog_loop(self):
@@ -926,8 +963,7 @@ class UDPServer:
                                         runtime["last_retry_ts"] = now
                                         action = ("retry_ack", car_id, index, len(order), runtime["step_retry_count"])
                                     else:
-                                        reconstruct_state["phase"] = "error"
-                                        reconstruct_state["last_error"] = f"STEP_ACK_TIMEOUT:{car_id}"
+                                        _enter_error_state(f"STEP_ACK_TIMEOUT:{car_id}")
                                         action = ("error", f"{car_id} STEP_ACK 超时次数超过上限")
 
                             elif runtime.get("assembling_started", False) and not runtime.get("image_started", False):
@@ -944,8 +980,7 @@ class UDPServer:
                                         runtime["last_retry_ts"] = now
                                         action = ("retry_img", car_id, index, len(order), runtime["step_retry_count"])
                                     else:
-                                        reconstruct_state["phase"] = "error"
-                                        reconstruct_state["last_error"] = f"FIRST_IMAGE_TIMEOUT:{car_id}"
+                                        _enter_error_state(f"FIRST_IMAGE_TIMEOUT:{car_id}")
                                         action = ("error", f"{car_id} 首图超时次数超过上限")
 
                 if action:
@@ -953,6 +988,9 @@ class UDPServer:
                     if action_type == "retry_ack":
                         _, car_id, index, total, retry_count = action
                         _log_reconstruct_event(f"{car_id} 未收到 STEP_ACK，重发 STEP（第{retry_count}次）")
+                        # 死锁A自愈：小车可能因 ASM_START 丢包仍停在 READY，导致它忽略 STEP（handle_step 要求 s_state==ASSEMBLING）。
+                        # 因此重发 STEP 前先补一发 ASM_START，把落队的小车拉进 ASSEMBLING 后再握手。
+                        _burst_broadcast_command("[R,ASM_START]")
                         _send_reconstruct_step(car_id, index, total, is_separation=False)
                     elif action_type == "retry_img":
                         _, car_id, index, total, retry_count = action
@@ -960,11 +998,11 @@ class UDPServer:
                         _send_reconstruct_step(car_id, index, total, is_separation=False)
                     elif action_type == "error":
                         _, msg = action
-                        _log_reconstruct_event(f"❌ {msg}")
+                        _log_reconstruct_event(f" {msg}")
 
                 time.sleep(0.1)
             except Exception as e:
-                print(f"❌ STEP 守护线程错误: {e}")
+                print(f" STEP 守护线程错误: {e}")
                 time.sleep(0.2)
 
     def send_to_car(self, car_id, message):
@@ -976,16 +1014,16 @@ class UDPServer:
                         if not message.endswith('\n'):
                             message += '\n'
                         self.socket.sendto(message.encode('utf-8'), car.address)
-                        print(f"📤 向 {car_id} 发送: {message.strip()}")
+                        print(f" 向 {car_id} 发送: {message.strip()}")
                         return True
                     except Exception as e:
-                        print(f"❌ 向 {car_id} 发送失败: {e}")
+                        print(f" 向 {car_id} 发送失败: {e}")
                         car.connected = False
                         return False
                 else:
-                    print(f"⚠️ 小车 {car_id} 已断开连接")
+                    print(f" 小车 {car_id} 已断开连接")
             else:
-                print(f"⚠️ 小车 {car_id} 不存在")
+                print(f" 小车 {car_id} 不存在")
         return False
 
     def send_to_car_reliable(self, car_id, message, max_retries=4):
@@ -1018,6 +1056,16 @@ vision_state = {
     "current_has_tag": False,
     "image_timestamp": 0,
     "last_warning": None,
+    # === 显示/检测解耦用的轻量 overlay 状态 ===
+    # 检测线程只更新这些“数据”（不做重复 JPEG 编码），MJPEG 线程读取后在原始采集帧上
+    # 轻量绘制（标签框 + 误差 + 制导速度）。这样显示帧率与检测帧率彻底独立，
+    # 标签入画导致的检测耗时尖峰不再拖累画面流畅度。
+    "overlay_cam_index": None,   # 当前 overlay 对应的物理相机索引
+    "overlay_car_id": None,      # 当前 overlay 对应的小车
+    "overlay_corners": None,     # 最近一次检测到的标签角点（全分辨率，np.ndarray 或 None）
+    "overlay_error": (0.0, 0.0, 0.0),  # (error_x, error_y, error_yaw)
+    "overlay_has_tag": False,
+    "overlay_ts": 0,             # 最近一次检测更新时间（用于判定新鲜度）
 }
 
 # 软开关：强制交互式输入部署车辆（不依赖环境变量）
@@ -1060,14 +1108,14 @@ def _parse_car_selection(raw_input, available_ids):
 
 def _prompt_deployed_cars(available_ids):
     if not available_ids:
-        print("⚠️ 未发现可用车辆配置，跳过交互选择")
+        print(" 未发现可用车辆配置，跳过交互选择")
         return []
     force_prompt = FORCE_VISION_PROMPT_SOFT or os.getenv("FORCE_VISION_PROMPT") == "1"
     if not sys.stdin.isatty() and not force_prompt:
-        print("⚠️ 非交互环境，默认绑定全部车辆")
+        print(" 非交互环境，默认绑定全部车辆")
         return list(available_ids)
     if force_prompt:
-        print("⚙️ FORCE_VISION_PROMPT=1，强制启用交互输入")
+        print(" FORCE_VISION_PROMPT=1，强制启用交互输入")
 
     tips = ", ".join(available_ids)
     print("\n请输入本次部署的小车编号，使用逗号分隔。")
@@ -1076,20 +1124,20 @@ def _prompt_deployed_cars(available_ids):
         try:
             raw_input = input("部署车辆> ").strip()
         except EOFError:
-            print("⚠️ 读取输入失败，默认绑定全部车辆")
+            print(" 读取输入失败，默认绑定全部车辆")
             return list(available_ids)
 
         selected = _parse_car_selection(raw_input, available_ids)
         if selected:
             return selected
-        print("⚠️ 输入无效，请重新输入。")
+        print(" 输入无效，请重新输入。")
 
 def _bind_vision_until_ready(binder, estimator, selected_cars):
     while True:
         try:
             bound = binder.scan_and_bind()
         except Exception as e:
-            print(f"⚠️ 摄像头绑定失败，将重新扫描: {e}")
+            print(f" 摄像头绑定失败，将重新扫描: {e}")
             time.sleep(0.8)
             continue
 
@@ -1102,7 +1150,7 @@ def _bind_vision_until_ready(binder, estimator, selected_cars):
                 vision_state["last_warning"] = None
             return True
 
-        print(f"⚠️ 未绑定到指定车辆: {missing}，即将重新扫描...")
+        print(f" 未绑定到指定车辆: {missing}，即将重新扫描...")
         with vision_lock:
             vision_state["bound_cameras"] = bound
             vision_state["last_warning"] = f"未绑定到指定车辆: {missing}"
@@ -1110,10 +1158,242 @@ def _bind_vision_until_ready(binder, estimator, selected_cars):
 
 udp_server = UDPServer(UDP_HOST, UDP_PORT)
 
+
+class CameraManager:
+    """管理物理摄像头的独立抓帧线程并缓存最新帧与JPEG编码，避免频繁 open/release 与重复编码。"""
+    def __init__(self):
+        self._cams = {}  # index -> {thread, cap, lock, frame, frame_ts, jpeg_b64, jpeg_bytes, jpeg_ts, running}
+        self._lock = threading.Lock()
+        self._switch_lock = threading.Lock()  # 串行化摄像头切换，避免共享 USB 总线上多路同时打开
+        self._processed_frames = {}  # index -> {jpeg_bytes, jpeg_ts} for detected/overlayed frames
+
+    def cache_processed_frame(self, index, frame, quality=80):
+        """Cache a processed frame (with detection overlay) for this camera index."""
+        try:
+            ok, buf = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), int(quality)])
+            if ok:
+                bts = buf.tobytes()
+                with self._lock:
+                    self._processed_frames[index] = {
+                        'jpeg_bytes': bts,
+                        'jpeg_ts': time.time()
+                    }
+        except Exception:
+            pass
+
+    def get_processed_jpeg_bytes(self, index):
+        """Get cached processed frame bytes (with detection overlay), or None if not available."""
+        with self._lock:
+            if index in self._processed_frames:
+                return self._processed_frames[index].get('jpeg_bytes')
+        return None
+
+    def stop_all_except(self, keep_index):
+        # 同步停止除 keep_index 之外的所有摄像头。共享 USB 总线下必须先释放旧相机再打开新相机，
+        # 否则两路同时占用带宽会导致新相机黑屏/打开失败。
+        with self._lock:
+            indices = list(self._cams.keys())
+        for index in indices:
+            if index != keep_index:
+                try:
+                    self.stop_camera(index)
+                except Exception:
+                    pass
+
+    def switch_to(self, index, binder, cooldown=0.35, retries=3):
+        """串行化的摄像头切换：先关闭其它相机 -> USB 冷却 -> 打开目标相机（带重试）。
+
+        共享 USB 总线下这是保证“同时只开一路”的唯一安全路径。返回是否成功打开目标相机。
+        """
+        with self._switch_lock:
+            # 目标已在运行则无需切换，仅确保其它相机已关闭
+            with self._lock:
+                already_running = index in self._cams and self._cams[index].get('running')
+            if already_running:
+                self.stop_all_except(index)
+                return True
+
+            # 先释放其它相机，给共享 USB 总线让出带宽和端点
+            self.stop_all_except(index)
+            if cooldown > 0:
+                time.sleep(cooldown)
+
+            for attempt in range(max(1, retries)):
+                if self.start_camera(index, binder):
+                    return True
+                # 打开失败：再等一个冷却周期后重试
+                time.sleep(cooldown)
+            print(f" [CameraManager] 摄像头索引 {index} 多次打开失败")
+            return False
+
+    def start_camera(self, index, binder):
+        with self._lock:
+            if index in self._cams and self._cams[index].get('running'):
+                return True
+        try:
+            cap = binder._open_camera(index)
+        except Exception:
+            cap = None
+        if not cap or not cap.isOpened():
+            try:
+                if cap:
+                    cap.release()
+            except Exception:
+                pass
+            return False
+
+        lock = threading.Lock()
+        state = {
+            'thread': None,
+            'cap': cap,
+            'lock': lock,
+            'frame': None,
+            'frame_ts': 0,
+            'jpeg_b64': None,
+            'jpeg_bytes': None,
+            'jpeg_ts': 0,
+            'running': True
+        }
+        with self._lock:
+            self._cams[index] = state
+
+        def _capture_loop():
+            c = state['cap']
+            try:
+                c.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            except Exception:
+                pass
+            # 丢掉启动后的旧帧，减少切换时的残影和陈旧画面
+            for _ in range(3):
+                try:
+                    c.grab()
+                except Exception:
+                    break
+            while state['running']:
+                try:
+                    ret, frm = c.read()
+                    if not ret or frm is None:
+                        time.sleep(0.01)
+                        continue
+                    with state['lock']:
+                        state['frame'] = frm
+                        state['frame_ts'] = time.time()
+                        state['jpeg_ts'] = 0
+                except Exception:
+                    time.sleep(0.05)
+            try:
+                c.release()
+            except Exception:
+                pass
+
+        t = threading.Thread(target=_capture_loop, daemon=True)
+        state['thread'] = t
+        t.start()
+        # 不在这里停止其他摄像头；调用者可选择调用 stop_all_except 保持平滑切换
+        return True
+
+    def stop_camera(self, index):
+        with self._lock:
+            st = self._cams.get(index)
+        if not st:
+            return
+        st['running'] = False
+        try:
+            if st.get('thread'):
+                st['thread'].join(timeout=0.5)
+        except Exception:
+            pass
+        try:
+            if st.get('cap'):
+                st['cap'].release()
+        except Exception:
+            pass
+        with self._lock:
+            self._cams.pop(index, None)
+
+    def get_frame(self, index, timeout=0.8):
+        with self._lock:
+            st = self._cams.get(index)
+        if not st:
+            return None, 0
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            with st['lock']:
+                if st['frame'] is not None:
+                    return st['frame'].copy(), st['frame_ts']
+            time.sleep(0.01)
+        return None, 0
+
+    def encode_frame(self, frame, quality=80):
+        try:
+            ok, buf = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), int(quality)])
+            if not ok:
+                return None, None
+            bts = buf.tobytes()
+            b64 = base64.b64encode(bts).decode('utf-8')
+            return b64, bts
+        except Exception:
+            return None, None
+
+    def get_jpeg_bytes(self, index, quality=80):
+        with self._lock:
+            st = self._cams.get(index)
+        if not st:
+            return None
+        with st['lock']:
+            frame = st.get('frame')
+            frame_ts = st.get('frame_ts', 0)
+            if frame is None:
+                return None
+            if st.get('jpeg_ts', 0) < frame_ts or st.get('jpeg_bytes') is None:
+                try:
+                    ok, buf = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), int(quality)])
+                    if ok:
+                        st['jpeg_bytes'] = buf.tobytes()
+                        st['jpeg_b64'] = None
+                        st['jpeg_ts'] = frame_ts
+                except Exception:
+                    return None
+            return st.get('jpeg_bytes')
+
+    def get_jpeg_b64(self, index, quality=80):
+        with self._lock:
+            st = self._cams.get(index)
+        if not st:
+            return None
+        with st['lock']:
+            frame = st.get('frame')
+            frame_ts = st.get('frame_ts', 0)
+            if frame is None:
+                return None
+            if st.get('jpeg_ts', 0) < frame_ts:
+                try:
+                    ok, buf = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), int(quality)])
+                    if ok:
+                        bts = buf.tobytes()
+                        st['jpeg_bytes'] = bts
+                        st['jpeg_b64'] = base64.b64encode(bts).decode('utf-8')
+                        st['jpeg_ts'] = frame_ts
+                except Exception:
+                    return None
+            return st.get('jpeg_b64')
+
+
+camera_manager = CameraManager()
+
 def _update_vision_snapshot(car_id, frame, error_tuple, has_tag):
     try:
-        _, buffer = cv2.imencode('.jpg', frame)
-        image_base64 = base64.b64encode(buffer).decode('utf-8')
+        # 使用 camera_manager 的编码缓存（若可用），避免每次重复编码
+        image_base64 = None
+        try:
+            if 'camera_manager' in globals() and camera_manager:
+                b64, _ = camera_manager.encode_frame(frame)
+                image_base64 = b64
+        except Exception:
+            image_base64 = None
+        if not image_base64:
+            _, buffer = cv2.imencode('.jpg', frame)
+            image_base64 = base64.b64encode(buffer).decode('utf-8')
     except Exception as e:
         _log_reconstruct_event(f"图像编码失败 ({car_id}): {e}")
         return
@@ -1134,6 +1414,38 @@ def _update_vision_snapshot(car_id, frame, error_tuple, has_tag):
         reconstruct_state["current_has_tag"] = has_tag
         reconstruct_state["image_timestamp"] = ts
 
+
+# 低频快照节流状态：仅供 _maybe_update_snapshot_lowfreq 使用
+_snapshot_lowfreq_state = {"last_ts": 0.0}
+SNAPSHOT_LOWFREQ_INTERVAL = 0.2  # 秒（~5Hz）。base64 快照只服务旧的轮询接口，无需高频。
+
+def _maybe_update_snapshot_lowfreq(cam_index, car_id):
+    """低频(~5Hz)生成 base64 图像快照，仅供不支持 MJPEG 的旧接口
+    (/api/vision/image、/api/reconstruct/image) 轮询使用。
+
+    关键：base64 编码较重，若每帧都做会拖慢检测循环。这里从采集线程缓存里取“干净”的
+    原始帧并轻量叠加 overlay 后编码，且做时间节流，避免影响检测/制导更新率。
+    """
+    now = time.time()
+    if now - _snapshot_lowfreq_state["last_ts"] < SNAPSHOT_LOWFREQ_INTERVAL:
+        return
+    _snapshot_lowfreq_state["last_ts"] = now
+    try:
+        if cam_index is None:
+            return
+        frame, _ts = camera_manager.get_frame(cam_index, timeout=0.05)
+        if frame is None:
+            return
+        # 在快照上也叠加 overlay（与 MJPEG 显示一致），随后编码
+        with vision_lock:
+            corners = vision_state.get("overlay_corners")
+            err = vision_state.get("overlay_error", (0.0, 0.0, 0.0))
+            has_tag = vision_state.get("overlay_has_tag", False)
+        out = _apply_vision_overlay(frame, car_id, corners, err, has_tag)
+        _update_vision_snapshot(car_id, out, err, has_tag)
+    except Exception:
+        pass
+
 def _mark_waiting_image_started(car_id):
     with reconstruct_lock:
         if reconstruct_state.get("phase") != "assembling":
@@ -1144,11 +1456,14 @@ def _mark_waiting_image_started(car_id):
         if not runtime.get("image_started", False):
             runtime["image_started"] = True
             runtime["img_meta_ts"] = time.time()
-            reconstruct_state["subphase"] = "GUIDING"
+            if runtime.get("assembling_started", False):
+                reconstruct_state["subphase"] = "GUIDING"
+            else:
+                reconstruct_state["subphase"] = "WAIT_FIRST_IMAGE"
 
 def _vision_loop():
-    cap = None
     active_car = None
+    active_cam_index = None
     last_active_car = None
     switch_time = 0.0
     empty_frame_count = 0
@@ -1168,12 +1483,22 @@ def _vision_loop():
             target_car = waiting_car if assembling and waiting_car else monitor_car
 
             if target_car != active_car:
-                if cap:
-                    cap.release()
-                    cap = None
-                    # 【核心修复】：增加强制物理冷却时间，给底层USB总线释放带宽和端点留出时间
-                    print(f"♻️ 释放摄像头，等待 USB 总线重置...")
-                    time.sleep(1.2)
+                target_cam_index = bound_cameras.get(target_car) if target_car else None
+                if binder and target_cam_index is not None:
+                    # 共享 USB 总线：先释放旧相机 -> 冷却 -> 打开目标相机（串行、带重试）
+                    if camera_manager.switch_to(target_cam_index, binder):
+                        active_cam_index = target_cam_index
+                    else:
+                        # 打开失败：不提交 active_car，下一轮循环重试，避免“卡住打不开”
+                        active_cam_index = None
+                        with vision_lock:
+                            vision_state["last_warning"] = f"摄像头打开失败: {target_car}"
+                        time.sleep(0.3)
+                        continue
+                else:
+                    active_cam_index = None
+
+                previous_cam = active_cam_index
                 active_car = target_car
                 with vision_lock:
                     vision_state["active_car_id"] = active_car
@@ -1182,73 +1507,94 @@ def _vision_loop():
                 empty_frame_count = 0
 
             if not target_car or not binder or not estimator:
-                time.sleep(0.1)
+                time.sleep(0.05)
                 continue
 
             cam_index = bound_cameras.get(target_car)
             if cam_index is None:
                 with vision_lock:
                     vision_state["last_warning"] = f"未绑定摄像头: {target_car}"
-                time.sleep(0.5)
+                time.sleep(0.2)
                 continue
 
-            if cap is None:
-                cap = binder._open_camera(cam_index)
-                if not cap or not cap.isOpened():
-                    if cap:
-                        cap.release()
-                    cap = None
-                    with vision_lock:
-                        vision_state["last_warning"] = f"摄像头打开失败: {target_car} (USB {cam_index})"
-                    time.sleep(0.5)
-                    continue
-                switch_time = time.time()
-                empty_frame_count = 0
-
-            ret, frame = cap.read()
-            if not ret or frame is None:
+            # 从 CameraManager 获取最新帧，避免频繁 open/release
+            frame, frame_ts = camera_manager.get_frame(cam_index, timeout=0.8)
+            if frame is None:
                 empty_frame_count += 1
                 if empty_frame_count >= 30:
-                    print("⚠️ 检测到连续空帧/黑屏，强制重启摄像头通道...")
-                    if cap:
-                        cap.release()
-                    time.sleep(0.2)
-                    cap = None
+                    print(" 检测到连续空帧/黑屏，摄像头可能异常，稍后重试...")
                     empty_frame_count = 0
                 time.sleep(0.02)
                 continue
             empty_frame_count = 0
 
-            if time.time() - switch_time < 1.5:
-                cv2.putText(
-                    frame,
-                    "CAMERA WARMING UP...",
-                    (15, 30),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.7,
-                    (0, 165, 255),
-                    2
-                )
-                _update_vision_snapshot(target_car, frame, (0.0, 0.0, 0.0), False)
-                time.sleep(0.03)
+            # 短暂 warm-up（比之前小），仍让算法稳定
+            if time.time() - switch_time < 0.5:
+                # 预热期：只清空 overlay（让 MJPEG 显示原始帧 + WARMING 字样），不做检测
+                with vision_lock:
+                    vision_state["overlay_cam_index"] = cam_index
+                    vision_state["overlay_car_id"] = target_car
+                    vision_state["overlay_corners"] = None
+                    vision_state["overlay_error"] = (0.0, 0.0, 0.0)
+                    vision_state["overlay_has_tag"] = False
+                    vision_state["overlay_ts"] = time.time()
+                time.sleep(0.02)
                 continue
 
-            success, z_dist, x_offset, yaw_angle, out_frame = estimator.process_frame(frame, target_car)
+            # === 只做检测/解算，绝不在这里编码或叠加显示（编码交给 MJPEG 线程做）===
+            # 注意：传入 frame 的副本无意义（process_frame 只读灰度），但我们不让它改动
+            # 采集线程缓存的原始帧——process_frame 内部对传入 frame 会画框，因此这里传一份拷贝，
+            # 保证 MJPEG 读到的原始帧保持“干净”，叠加由 MJPEG 线程独立完成。
+            success, z_dist, x_offset, yaw_angle, _ = estimator.process_frame(frame.copy(), target_car)
             # 映射到小车坐标：前进误差使用 z_dist，横向误差使用 -x_offset
             error_x = float(z_dist) * 100.0 if success else 0.0 # 前进误差
             error_y = -float(x_offset) * 100.0 if success else 0.0 # 横向误差
             error_yaw = float(yaw_angle) if success else 0.0 # 角度误差
 
-            _update_vision_snapshot(target_car, out_frame, (error_x, error_y, error_yaw), success)
+            # 把检测“数据”写入共享 overlay 状态，供 MJPEG 线程轻量绘制（不做 JPEG 编码）
+            corners_copy = None
+            try:
+                if success and estimator.last_tag_corners is not None:
+                    corners_copy = estimator.last_tag_corners.copy()
+            except Exception:
+                corners_copy = None
+            with vision_lock:
+                vision_state["overlay_cam_index"] = cam_index
+                vision_state["overlay_car_id"] = target_car
+                vision_state["overlay_corners"] = corners_copy
+                vision_state["overlay_error"] = (error_x, error_y, error_yaw)
+                vision_state["overlay_has_tag"] = bool(success)
+                vision_state["overlay_ts"] = time.time()
+                # 兼容旧的弹窗/状态查询：仍记录误差与 tag 标志（不再在这里做 base64 编码，
+                # base64 快照改由低频的 _update_vision_snapshot_lowfreq 生成）
+                vision_state["current_error"] = (error_x, error_y, error_yaw)
+                vision_state["current_error_car"] = target_car
+                vision_state["current_has_tag"] = bool(success)
+                vision_state["image_timestamp"] = time.time()
+
             _mark_waiting_image_started(target_car)
 
-            if assembling and waiting_car == target_car and success:
-                _update_guide_controller(target_car, (error_x, error_y, error_yaw))
+            # 低频生成 base64 快照（供不支持 MJPEG 的旧弹窗/接口），避免每帧重复编码拖慢检测
+            _maybe_update_snapshot_lowfreq(cam_index, target_car)
 
-            time.sleep(0.03)
+            if assembling and waiting_car == target_car:
+                _ensure_guide_controller_started(target_car)
+                if success:
+                    # 真正检测到 AprilTag，误差可信，可作为到达/前进依据
+                    _update_guide_controller(target_car, (error_x, error_y, error_yaw), has_tag=True)
+                else:
+                    # 无Tag：仅保活刷新，绝不能作为到达依据（否则会误判 DONE=1）
+                    _update_guide_controller(target_car, (0.0, 0.0, 0.0), has_tag=False)
+
+            # 检测循环节流：制导需要足够更新率，但不必跑满 CPU。20~30ms 一轮即可。
+            time.sleep(0.02)
 
         except Exception as e:
             _log_reconstruct_event(f"视觉线程错误: {e}")
+            try:
+                print("视觉线程异常堆栈:\n" + traceback.format_exc())
+            except Exception:
+                pass
             time.sleep(0.1)
 
 def record_pose_sample(car_id, timestamp, x, y, yaw):
@@ -1275,9 +1621,9 @@ def finalize_pose_save(car_id):
                 ts = datetime.fromtimestamp(item["timestamp"]).isoformat(timespec="milliseconds")
                 elapsed = item["timestamp"] - session.start_time
                 writer.writerow([ts, round(elapsed, 3), item["x"], item["y"], item["yaw"]])
-        print(f"✅ 位姿数据保存完成: {save_path} (共 {len(session.records)} 条)")
+        print(f" 位姿数据保存完成: {save_path} (共 {len(session.records)} 条)")
     except Exception as e:
-        print(f"❌ 位姿数据保存失败: {e}")
+        print(f" 位姿数据保存失败: {e}")
 
 def start_pose_save(car_id, duration_sec):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1314,7 +1660,7 @@ def update_topology_cache():
                 if communication_topology[other_index][target_index] == 1:
                     visible_cars.append(other_car)
         topology_cache[target_car] = visible_cars
-    print(f"🔧 拓扑缓存已更新: {topology_cache}")
+    print(f" 拓扑缓存已更新: {topology_cache}")
 
 def _copy_topology(matrix):
     return [row[:] for row in matrix]
@@ -1385,6 +1731,87 @@ def _get_reconstruct_pos_label(index, total):
         return RECONSTRUCT_POS_LABELS[index]
     return f"P{index + 1}"
 
+
+def _draw_vision_overlay(frame, car_id, error_x, error_y, error_yaw):
+    if frame is None:
+        return frame
+
+    try:
+        height, width = frame.shape[:2]
+        robot_suffix = car_id[3:] if isinstance(car_id, str) and car_id.upper().startswith("CAR") and len(car_id) > 3 else str(car_id or "")
+        robot_label = f"ROBOT-{robot_suffix}"
+        pose_text = f"X:{error_x:.1f}cm Y:{error_y:.1f}cm Yaw:{error_yaw:.1f}deg"
+
+        label_font = cv2.FONT_HERSHEY_SIMPLEX
+        label_scale = 0.7
+        label_thickness = 2
+        pose_scale = 0.65
+        pose_thickness = 2
+
+        label_size = cv2.getTextSize(robot_label, label_font, label_scale, label_thickness)[0]
+        pose_size = cv2.getTextSize(pose_text, label_font, pose_scale, pose_thickness)[0]
+
+        label_top_left = (10, 10)
+        label_bottom_right = (label_top_left[0] + label_size[0] + 18, label_top_left[1] + label_size[1] + 18)
+        cv2.rectangle(frame, label_top_left, label_bottom_right, (0, 0, 0), -1)
+        cv2.putText(frame, robot_label, (label_top_left[0] + 8, label_top_left[1] + label_size[1] + 6), label_font, label_scale, (0, 165, 255), label_thickness)
+
+        pose_bottom_y = max(20 + pose_size[1], height - 12)
+        pose_top_y = max(0, pose_bottom_y - pose_size[1] - 14)
+        pose_bottom_right = (10 + pose_size[0] + 18, min(height, pose_bottom_y + 8))
+        cv2.rectangle(frame, (10, pose_top_y), pose_bottom_right, (0, 0, 0), -1)
+        cv2.putText(frame, pose_text, (18, pose_bottom_y), label_font, pose_scale, (255, 255, 255), pose_thickness)
+
+        # 制导速度实时叠加：仅在有较新的制导指令时显示（1s 内）
+        try:
+            with reconstruct_lock:
+                gv = reconstruct_state.get("guide_velocity", {}).get(car_id)
+            if gv and (time.time() - gv.get("ts", 0) < 1.0):
+                vel_text = f"VX:{gv['vx']:+.3f} VY:{gv['vy']:+.3f} VZ:{gv['vz']:+.3f} m/s"
+                vel_color = (0, 255, 0) if gv.get("done") == 1 else (0, 255, 255)
+                vel_scale = 0.6
+                vel_thickness = 2
+                vel_size = cv2.getTextSize(vel_text, label_font, vel_scale, vel_thickness)[0]
+                # 放在姿势文本上方一行
+                vel_bottom_y = max(0, pose_top_y - 6)
+                vel_top_y = max(0, vel_bottom_y - vel_size[1] - 12)
+                vel_bottom_right = (10 + vel_size[0] + 18, vel_bottom_y + 4)
+                cv2.rectangle(frame, (10, vel_top_y), vel_bottom_right, (0, 0, 0), -1)
+                cv2.putText(frame, vel_text, (18, vel_bottom_y - 2), label_font, vel_scale, vel_color, vel_thickness)
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+    return frame
+
+def _apply_vision_overlay(frame, car_id, corners, error_tuple, has_tag):
+    """在原始采集帧上轻量叠加：标签框(若有) + 文本(机器人名/误差/制导速度)。
+
+    该函数由 MJPEG 显示线程调用，输入为采集线程的原始帧副本，与检测循环解耦：
+    检测线程只把“角点/误差/是否有 Tag”写入共享状态，这里负责把它们画出来。
+    绘制成本很低(几条线 + 几段文字)，不含检测/PnP，因此显示帧率不受检测耗时影响。
+    """
+    if frame is None:
+        return frame
+    try:
+        ex, ey, eyaw = (error_tuple if error_tuple and len(error_tuple) >= 3 else (0.0, 0.0, 0.0))
+        # 先画标签框(绿色四边形 + 角点)，仅当本次检测确有 Tag 且角点可用
+        if has_tag and corners is not None:
+            try:
+                pts = np.asarray(corners, dtype=np.int32).reshape(-1, 2)
+                if pts.shape[0] >= 4:
+                    cv2.polylines(frame, [pts[:4]], True, (0, 255, 0), 2)
+                    for (px, py) in pts[:4]:
+                        cv2.circle(frame, (int(px), int(py)), 3, (0, 0, 255), -1)
+            except Exception:
+                pass
+        # 再叠加文本(机器人名/误差/速度)，复用已有实现
+        frame = _draw_vision_overlay(frame, car_id, ex, ey, eyaw)
+    except Exception:
+        pass
+    return frame
+
 def _log_reconstruct_event(message):
     """记录重构事件日志"""
     timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
@@ -1397,7 +1824,7 @@ def _log_reconstruct_event(message):
             reconstruct_state["debug_logs"] = reconstruct_state["debug_logs"][-50:]
 
     # 控制台输出
-    print(f"📝 {log_entry}")
+    print(f" {log_entry}")
 
     # 追加持久化日志（异步安全的文件写入）
     try:
@@ -1440,6 +1867,7 @@ def _reset_reconstruct_state():
         "current_error": None,
         "current_error_car": None,
         "current_has_tag": False,
+        "guide_velocity": {},
         "debug_logs": []
     })
 
@@ -1470,15 +1898,27 @@ def _make_step_runtime():
         "last_retry_ts": 0,
     }
 
+
+def _enter_error_state(msg):
+    """统一设置进入错误态：记录错误、停止激活并写日志。"""
+    with reconstruct_lock:
+        reconstruct_state["phase"] = "error"
+        reconstruct_state["active"] = False
+        reconstruct_state["subphase"] = "idle"
+        reconstruct_state["last_error"] = msg
+    _log_reconstruct_event(f"进入错误态: {msg}")
+
 def _send_reconstruct_step(car_id, index, total, is_separation=False):
     pos_label = _get_reconstruct_pos_label(index, total)
     with reconstruct_lock:
         runtime = reconstruct_state.setdefault("step_runtime", {}).setdefault(car_id, _make_step_runtime())
-        runtime["step_sent_ts"] = time.time()
+        # 注意：step_sent_ts 在“真正发出 STEP 之后”再刻，避免把摄像头切换/发送耗时算进握手超时窗口
+        runtime["step_sent_ts"] = 0
         runtime["step_ack_ts"] = 0
         runtime["img_meta_ts"] = 0
         runtime["assembling_started"] = False
         runtime["image_started"] = False
+        runtime["step_retry_count"] = runtime.get("step_retry_count", 0)
         reconstruct_state["subphase"] = "WAIT_STEP_ACK"
 
     if is_separation:
@@ -1487,11 +1927,27 @@ def _send_reconstruct_step(car_id, index, total, is_separation=False):
     else:
         cmd = f"[R,STEP,{car_id},POS={pos_label}]"
         _log_reconstruct_event(f"发送拼接指令: {cmd}")
-    success = False
-    for attempt in range(3):
-        success = udp_server.send_to_car_reliable(car_id, cmd, max_retries=4)
-        if attempt < 2:
-            time.sleep(0.05)
+
+    # 只做“切换目标”的登记，实际打开摄像头交给 _vision_loop 异步完成；
+    # 绝不能在 UDP 接收线程里同步 switch_to（会阻塞接收线程，连带 STEP_ACK 都收不到）。
+    try:
+        with vision_lock:
+            vision_state['monitor_car_id'] = car_id
+    except Exception:
+        pass
+
+    # 关键修复：STEP 改用“子网广播”下发，与 PREP/ORDER/ASM_START 完全同一条已被验证可达的链路。
+    # 之前 STEP 走单播(send_to_car ->(car_ip,8081))，而本项目准备阶段小车只依赖广播指令+僚车状态
+    # 报文即可就位，单播链路从未被真正验证过；实测现象正是“准备阶段一切正常，一进入拼接、首次需要
+    # 单播 STEP 时全线失灵、STEP_ACK 永远收不到”。小车端 handle_step 已按 target==自身 过滤，广播安全。
+    # 用 _burst_broadcast_command 连发多次，进一步对抗 UDP 丢包。
+    _burst_broadcast_command(cmd, repeat=3, delay=0.05)
+    success = True
+
+    # STEP 已经真正发出，此刻才开始计握手超时
+    with reconstruct_lock:
+        runtime = reconstruct_state.setdefault("step_runtime", {}).setdefault(car_id, _make_step_runtime())
+        runtime["step_sent_ts"] = time.time()
     return success
 
 def _advance_reconstruct_assembly(car_id):
@@ -1518,8 +1974,42 @@ def _advance_reconstruct_assembly(car_id):
 
         reconstruct_state["current_index"] = next_index
         reconstruct_state["waiting_car_id"] = order[next_index]
+        # 仅设置监控目标，摄像头切换交给 _vision_loop 异步执行，
+        # 避免在 UDP 接收线程中阻塞（switch_to 含冷却+重试，可能耗时秒级）
+        with vision_lock:
+            vision_state["monitor_car_id"] = order[next_index]
         _log_reconstruct_event(f"小车 {car_id} 拼接完成，开始下一辆: {order[next_index]}")
         _send_reconstruct_step(order[next_index], next_index, len(order), is_separation=False)
+
+
+def _is_anchor_car(car_id):
+    """首车作为基准等待被拼接，不参与视觉制导。"""
+    with reconstruct_lock:
+        order = list(reconstruct_state.get("order", []))
+    if not order:
+        return False
+    return car_id == order[0]
+
+
+def _ensure_guide_controller_started(car_id):
+    """确保等待拼接车辆的制导控制器已启动，即便暂时未检测到Tag也持续下发保活GUIDE。"""
+    if _is_anchor_car(car_id):
+        return
+    with reconstruct_lock:
+        if reconstruct_state.get("phase") != "assembling":
+            return
+        if reconstruct_state.get("waiting_car_id") != car_id:
+            return
+        runtime = reconstruct_state.setdefault("step_runtime", {}).setdefault(car_id, _make_step_runtime())
+        if not runtime.get("assembling_started", False):
+            return
+        if car_id not in reconstruct_state["guide_controllers"]:
+            reconstruct_state["guide_controllers"][car_id] = GuideController(car_id)
+        controller = reconstruct_state["guide_controllers"][car_id]
+        if not controller.active:
+            controller.start_guidance()
+            reconstruct_state["subphase"] = "GUIDING_WAIT_VISION"
+            _log_reconstruct_event(f"启动制导控制器（等待视觉锁定）: {car_id}")
 
 def _advance_reconstruct_separation(car_id):
     with reconstruct_lock:
@@ -1608,29 +2098,35 @@ def _get_front_heading_error(car_id):
 
     return _wrap_angle_deg(front_heading - current_heading)
 
-def _update_guide_controller(car_id, pose_error):
-    """更新制导控制器"""
+def _update_guide_controller(car_id, pose_error, has_tag=True):
+    """更新制导控制器。has_tag=False 表示这一帧未检测到 AprilTag，仅用于保活，不能触发到达判定。"""
+    if _is_anchor_car(car_id):
+        return
     with reconstruct_lock:
         if reconstruct_state["phase"] != "assembling":
             return
-            
+
         if reconstruct_state["waiting_car_id"] != car_id:
             return
-            
+
+        runtime = reconstruct_state.setdefault("step_runtime", {}).setdefault(car_id, _make_step_runtime())
+        if not runtime.get("assembling_started", False):
+            return
+
         # 获取或创建制导控制器
         if car_id not in reconstruct_state["guide_controllers"]:
             reconstruct_state["guide_controllers"][car_id] = GuideController(car_id)
-            
+
         controller = reconstruct_state["guide_controllers"][car_id]
         reconstruct_state["subphase"] = "GUIDING"
-        
+
         # 如果控制器未激活，启动它
         if not controller.active:
             controller.start_guidance()
             print(f" 启动制导控制器 ({car_id})")
-            
+
         # 更新位姿误差
-        controller.update_pose_error(*pose_error)
+        controller.update_pose_error(*pose_error, has_tag=has_tag)
 
 
 def handle_reconstruct_report(data):
@@ -1697,8 +2193,8 @@ def handle_reconstruct_report(data):
                     _switch_to_chain_topology(order)
                     reconstruct_state["phase"] = "assembling"
                     reconstruct_state["subphase"] = "SEND_STEP"
-                    reconstruct_state["current_index"] = 0
-                    reconstruct_state["waiting_car_id"] = order[0]
+                    reconstruct_state["current_index"] = None
+                    reconstruct_state["waiting_car_id"] = None
                     start_assembling = True
                     start_order = list(order)
         if resend_asm_start:
@@ -1708,10 +2204,33 @@ def handle_reconstruct_report(data):
         if start_assembling and start_order:
             _burst_broadcast_command("[R,ASM_START]")
             _log_reconstruct_event("全员准备就绪，自动开启顺序拼接流程...")
-            _advance_reconstruct_assembly(start_order[0])
+            if len(start_order) < 2:
+                # 仅有首车时视为无需拼接，直接完成
+                with reconstruct_lock:
+                    reconstruct_state["phase"] = "assembled"
+                    reconstruct_state["subphase"] = "idle"
+                    reconstruct_state["current_index"] = None
+                    reconstruct_state["waiting_car_id"] = None
+                _log_reconstruct_event("仅有首车，无需拼接，直接完成")
+                udp_server.broadcast_global_command("[R,DONE]")
+                _restore_previous_topology()
+                return True
+
+            # 首车为锚点，不下发 STEP；从第2辆开始拼接到首车
+            second_car = start_order[1]
+            with reconstruct_lock:
+                reconstruct_state["current_index"] = 1
+                reconstruct_state["waiting_car_id"] = second_car
+                reconstruct_state["subphase"] = "SEND_STEP"
+            with vision_lock:
+                vision_state["monitor_car_id"] = second_car
+            _send_reconstruct_step(second_car, 1, len(start_order), is_separation=False)
         return True
 
     if command == "STEP_ACK" and car_id:
+        if _is_anchor_car(car_id):
+            _log_reconstruct_event(f"忽略锚点车 STEP_ACK: {car_id}")
+            return True
         with reconstruct_lock:
             if reconstruct_state.get("phase") != "assembling":
                 return True
@@ -1720,7 +2239,7 @@ def handle_reconstruct_report(data):
             runtime = reconstruct_state.setdefault("step_runtime", {}).setdefault(car_id, _make_step_runtime())
             runtime["assembling_started"] = True
             runtime["step_ack_ts"] = time.time()
-            reconstruct_state["subphase"] = "WAIT_FIRST_IMAGE"
+            reconstruct_state["subphase"] = "GUIDING" if runtime.get("image_started", False) else "WAIT_FIRST_IMAGE"
             ev = reconstruct_state.setdefault("events", {}).setdefault(car_id, {})
             ev["last_step_ack"] = runtime["step_ack_ts"]
             try:
@@ -1729,6 +2248,11 @@ def handle_reconstruct_report(data):
             except Exception:
                 pass
             _log_reconstruct_event(f"收到 STEP_ACK: {car_id}")
+        # 仅登记监控目标，摄像头切换交给 _vision_loop 异步执行，
+        # 避免在 UDP 接收线程内做阻塞式串行切换（会拖住后续回包处理）。
+        with vision_lock:
+            vision_state["monitor_car_id"] = car_id
+        _ensure_guide_controller_started(car_id)
         return True
 
     if command == "DIAG" and car_id:
@@ -1809,14 +2333,12 @@ def handle_reconstruct_report(data):
                     _send_reconstruct_step(car_id, index, len(order), is_separation=False)
                     return True
 
-            reconstruct_state["phase"] = "error"
-            reconstruct_state["last_error"] = data
+            _enter_error_state(data)
         return True
 
     if command == "SEP_FAIL":
         with reconstruct_lock:
-            reconstruct_state["phase"] = "error"
-            reconstruct_state["last_error"] = data
+            _enter_error_state(data)
             if car_id:
                 ev = reconstruct_state.setdefault("events", {}).setdefault(car_id, {})
                 ev["last_step_fail"] = time.time()
@@ -1858,7 +2380,7 @@ def toggle_broadcast():
     enable = data.get('enable', True)
     broadcast_enabled = enable
     status = "开启" if enable else "关闭"
-    print(f"📢 广播功能 {status}")
+    print(f" 广播功能 {status}")
     return jsonify({
         'success': True,
         'message': f'广播功能已{status}',
@@ -1941,14 +2463,24 @@ def start_reconstruct():
         return jsonify({'success': False, 'error': f'小车 {missing[0]} 未连接'}), 400
 
     with reconstruct_lock:
-        if reconstruct_state["phase"] not in ("idle", "assembled"):
+        # 仅在“进行中”的阶段拒绝重复启动；error/idle/assembled 均允许重新开始，
+        # 避免上一轮出错后卡在 error 态无法再启动（前端会显示“进行中请先中止”的假象）。
+        if reconstruct_state["phase"] in ("preparing", "assembling", "separating"):
             return jsonify({'success': False, 'error': '重构流程进行中，请先结束或中止'}), 400
+        # 若上一轮遗留了制导控制器（例如异常/错误态），先全部停止再重置，防止旧线程继续下发 GUIDE
+        for _cid, _ctrl in list(reconstruct_state.get("guide_controllers", {}).items()):
+            try:
+                _ctrl.stop_guidance()
+            except Exception:
+                pass
         reconstruct_state["active"] = True
         reconstruct_state["phase"] = "preparing"
         reconstruct_state["subphase"] = "WAIT_PREP_OK_ALL"
         reconstruct_state["order"] = order
         reconstruct_state["prepared"] = {}
         reconstruct_state["step_runtime"] = {}
+        reconstruct_state["guide_controllers"] = {}
+        reconstruct_state["events"] = {}
         reconstruct_state["current_index"] = None
         reconstruct_state["waiting_car_id"] = None
         reconstruct_state["last_error"] = None
@@ -1961,6 +2493,11 @@ def start_reconstruct():
         for car_id in order:
             prep_map[car_id] = {"last_prep_ok": 0, "last_retry": 0, "retries": 0}
         reconstruct_state["prep_waiting"] = prep_map
+
+    # 让视觉线程在准备阶段就把“下一辆要拼接的车”的画面提前调出来（多车时为 order[1]，
+    # 单车时为 order[0]）。这样小车到达准备位置时画面已就绪，无需等到 assembling。
+    with vision_lock:
+        vision_state["monitor_car_id"] = order[1] if len(order) >= 2 else order[0]
 
     # 进入重构模式后切换为准备阶段中心拓扑
     _switch_to_prep_topology(order)
@@ -2035,6 +2572,12 @@ def get_reconstruct_status():
             'current_has_tag': reconstruct_state.get("current_has_tag"),
             'debug_logs': reconstruct_state["debug_logs"][-20:]  # 返回最近20条日志
         }
+
+    # 当前应显示的视觉目标车：拼接阶段用 waiting_car_id，其它阶段用 monitor_car_id
+    with vision_lock:
+        monitor_car = vision_state.get("monitor_car_id")
+    state_snapshot['vision_target_car'] = waiting_car or monitor_car
+
     return jsonify(state_snapshot)
 
 
@@ -2160,6 +2703,126 @@ def scan_and_bind_vision_devices():
     return jsonify({'success': True, 'message': '已开始重新扫描摄像头'})
 
 
+@app.route('/stream/mjpeg/<car_id>')
+def mjpeg_stream(car_id):
+    with vision_lock:
+        bound = dict(vision_state.get('bound_cameras', {}))
+        binder = vision_state.get('binder')
+    cam_index = bound.get(car_id)
+    if cam_index is None:
+        # 未绑定时先尝试重新扫描一次，避免“直接打不开”
+        try:
+            if binder:
+                bound = binder.scan_and_bind()
+                with vision_lock:
+                    vision_state['bound_cameras'] = bound
+                cam_index = bound.get(car_id)
+        except Exception:
+            cam_index = None
+    if cam_index is None:
+        def _fallback_gen():
+            try:
+                placeholder_img = 255 * np.ones((240, 320, 3), dtype=np.uint8)
+                cv2.putText(placeholder_img, 'CAMERA NOT READY', (18, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+                ok, buf = cv2.imencode('.jpg', placeholder_img, [int(cv2.IMWRITE_JPEG_QUALITY), int(60)])
+                jpg = buf.tobytes() if ok else b''
+            except Exception:
+                jpg = b''
+            while True:
+                if not jpg:
+                    time.sleep(0.2)
+                    continue
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + jpg + b'\r\n')
+                time.sleep(0.5)
+
+        return Response(_fallback_gen(), mimetype='multipart/x-mixed-replace; boundary=frame')
+    q = request.args.get('q')
+    try:
+        quality = int(q) if q else 80
+        if quality < 10:
+            quality = 10
+        if quality > 95:
+            quality = 95
+    except Exception:
+        quality = 80
+
+    # 尝试确保摄像头已启动，减少空白流的发生（串行切换，共享 USB 总线下始终只开一路）
+    try:
+        with vision_lock:
+            binder = vision_state.get('binder')
+        if binder is not None:
+            camera_manager.switch_to(cam_index, binder)
+    except Exception:
+        pass
+
+    # 预生成占位 JPEG（避免客户端长时间等待）
+    try:
+        placeholder_img = 255 * np.ones((240, 320, 3), dtype=np.uint8)
+        cv2.putText(placeholder_img, 'NO FRAME', (30, 120), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
+        ok, buf = cv2.imencode('.jpg', placeholder_img, [int(cv2.IMWRITE_JPEG_QUALITY), int(60)])
+        placeholder_jpg = buf.tobytes() if ok else b''
+    except Exception:
+        placeholder_jpg = b''
+
+    def gen():
+        # 显示线程：直接取采集线程的原始帧，自己轻量叠加 overlay（标签框+编号+误差+速度）后编码输出。
+        # 与检测循环完全解耦——检测再慢也不会拖慢这里的显示帧率（这是解决“标签入画卡顿”的关键）。
+        while True:
+            frame, frame_ts = camera_manager.get_frame(cam_index, timeout=0.5)
+            if frame is None:
+                if placeholder_jpg:
+                    try:
+                        yield (b'--frame\r\n'
+                               b'Content-Type: image/jpeg\r\n\r\n' + placeholder_jpg + b'\r\n')
+                    except Exception:
+                        pass
+                time.sleep(0.05)
+                continue
+
+            # 仅当本相机正是当前检测目标、且 overlay 数据新鲜(1s 内)时，才叠加检测结果。
+            overlay_frame = frame
+            try:
+                with vision_lock:
+                    ov_cam = vision_state.get("overlay_cam_index")
+                    ov_car = vision_state.get("overlay_car_id")
+                    ov_corners = vision_state.get("overlay_corners")
+                    ov_err = vision_state.get("overlay_error", (0.0, 0.0, 0.0))
+                    ov_has_tag = vision_state.get("overlay_has_tag", False)
+                    ov_ts = vision_state.get("overlay_ts", 0)
+                # 即使没有 Tag，也叠加“编号+误差”文本（只在本相机是当前目标时）；有 Tag 再加框+速度。
+                if ov_cam == cam_index and (time.time() - ov_ts) < 1.0:
+                    overlay_frame = _apply_vision_overlay(frame.copy(), ov_car or car_id,
+                                                          ov_corners, ov_err, ov_has_tag)
+                else:
+                    # 本相机不是当前检测目标：仍叠加编号，方便辨识画面属于哪辆车
+                    overlay_frame = _apply_vision_overlay(frame.copy(), car_id,
+                                                          None, (0.0, 0.0, 0.0), False)
+            except Exception:
+                overlay_frame = frame
+
+            try:
+                ok, buf = cv2.imencode('.jpg', overlay_frame,
+                                       [int(cv2.IMWRITE_JPEG_QUALITY), int(quality)])
+                if not ok:
+                    time.sleep(0.02)
+                    continue
+                jpg = buf.tobytes()
+            except Exception:
+                time.sleep(0.02)
+                continue
+
+            try:
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + jpg + b'\r\n')
+            except Exception:
+                time.sleep(0.02)
+                continue
+            time.sleep(0.03)
+
+    return Response(gen(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+
 @app.route('/api/reconstruct/logs')
 def get_reconstruct_logs():
     """获取重构日志"""
@@ -2262,8 +2925,8 @@ def set_topology():
             topology_str = ','.join(str(cell) for cell in topology_flat)
             topology_cmd = f"[T,M,{topology_str}]"
             success = udp_server.broadcast_global_command(topology_cmd)
-            print(f"✅ 通信拓扑已更新: {communication_topology}")
-            print(f"📤 发送拓扑指令: {topology_cmd}")
+            print(f" 通信拓扑已更新: {communication_topology}")
+            print(f" 发送拓扑指令: {topology_cmd}")
             return jsonify({
                 'success': True,
                 'message': f'通信拓扑已{"启用" if enable else "禁用"}',
@@ -2294,7 +2957,7 @@ def toggle_topology():
     update_topology_cache()
     toggle_cmd = f"[T,E,{1 if enable else 0}]"
     broadcast_success = udp_server.broadcast_global_command(toggle_cmd)
-    print(f"🔗 拓扑通信 {status}")
+    print(f" 拓扑通信 {status}")
     return jsonify({
         'success': True,
         'message': f'拓扑通信已{status}',
@@ -2353,14 +3016,14 @@ def get_network_info():
     try:
         import netifaces
         interfaces = netifaces.interfaces()
-        print("🌐 网络接口信息:")
+        print(" 网络接口信息:")
         for interface in interfaces:
             addrs = netifaces.ifaddresses(interface)
             if netifaces.AF_INET in addrs:
                 for addr_info in addrs[netifaces.AF_INET]:
                     print(f"  {interface}: {addr_info['addr']} - 广播地址: {addr_info.get('broadcast', 'N/A')}")
     except ImportError:
-        print("⚠️ 无法获取详细网络信息，请安装 netifaces")
+        print(" 无法获取详细网络信息，请安装 netifaces")
 
 if __name__ == '__main__':
     get_network_info()
@@ -2376,38 +3039,42 @@ if __name__ == '__main__':
             estimator = PoseEstimator(VISION_CONFIG)
             available_ids = _get_available_car_ids()
             selected_cars = _prompt_deployed_cars(available_ids)
-            print(f"✅ 本次部署车辆: {selected_cars}")
+            print(f" 本次部署车辆: {selected_cars}")
             try:
                 if not _bind_vision_until_ready(binder, estimator, selected_cars):
-                    print("⚠️ 摄像头绑定未完成，系统退出")
+                    print(" 摄像头绑定未完成，系统退出")
                     sys.exit(1)
             except KeyboardInterrupt:
-                print("\n⚠️ 已手动退出摄像头绑定，系统退出")
+                print("\n 已手动退出摄像头绑定，系统退出")
                 sys.exit(1)
 
             threading.Thread(target=_vision_loop, daemon=True).start()
-            print("👁️ 本地视觉线程已启动")
+            print(" 本地视觉线程已启动")
         except Exception as e:
-            print(f"⚠️ 初始化本地视觉失败，继续运行: {e}")
+            print(f" 初始化本地视觉失败，继续运行: {e}")
     else:
-        print("⚠️ 本地视觉模块不可用，跳过视觉线程")
+        print(" 本地视觉模块不可用，跳过视觉线程")
     
     if udp_server.start():
-        print("✅ UDP服务器启动成功")
+        print(" UDP服务器启动成功")
         init_formation_controller(cars, udp_server)
-        print(f"📡 广播频率: {1 / broadcast_interval:.0f}Hz ({broadcast_interval * 1000:.0f}ms间隔)")
-        print(f"📡 广播分组大小: 每组最多 {broadcast_group_size} 辆小车")
-        print(f"📢 使用子网广播地址，端口: {BROADCAST_PORT}")
+        print(f" 广播频率: {1 / broadcast_interval:.0f}Hz ({broadcast_interval * 1000:.0f}ms间隔)")
+        print(f" 广播分组大小: 每组最多 {broadcast_group_size} 辆小车")
+        print(f" 使用子网广播地址，端口: {BROADCAST_PORT}")
         local_ip = get_local_ip()
-        print(f"🌐 服务器本地IP地址: {local_ip}")
-        print(f"💡 访问 http://{local_ip}:{WEB_PORT} 打开控制界面")
+        print(f" 服务器本地IP地址: {local_ip}")
+        print(f" 访问 http://{local_ip}:{WEB_PORT} 打开控制界面")
         # 启动自动归档守护线程（自动下载日志到 logs/auto_downloads）
         try:
             archive_thread = threading.Thread(target=_archive_worker_loop, args=(LOG_ARCHIVE_INTERVAL_S,), daemon=True)
             archive_thread.start()
-            print(f"🔁 自动归档守护已启动，间隔 {LOG_ARCHIVE_INTERVAL_S}s，目录: {os.path.join(os.path.dirname(__file__), LOG_ARCHIVE_DIRNAME)}")
+            print(f" 自动归档守护已启动，间隔 {LOG_ARCHIVE_INTERVAL_S}s，目录: {os.path.join(os.path.dirname(__file__), LOG_ARCHIVE_DIRNAME)}")
         except Exception as e:
-            print(f"⚠️ 启动自动归档守护失败: {e}")
+            print(f" 启动自动归档守护失败: {e}")
         app.run(host='0.0.0.0', port=WEB_PORT, debug=False, use_reloader=False, threaded=True)
     else:
-        print("❌ UDP服务器启动失败，无法运行应用")
+        print(" UDP服务器启动失败，无法运行应用")
+        
+        
+        
+

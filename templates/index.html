@@ -1019,8 +1019,10 @@
         .video-popup {
             position: fixed;
             left: 40px;
-            top: 80px;
-            width: 360px;
+            top: 40px;
+            width: 1000px;
+            max-width: calc(100vw - 80px);
+            height: calc(100vh - 80px);
             background: rgba(16, 22, 28, 0.92);
             border: 1px solid rgba(120, 140, 150, 0.45);
             border-radius: 12px;
@@ -1028,10 +1030,11 @@
             z-index: 9999;
             box-shadow: 0 20px 40px rgba(10, 18, 24, 0.4);
             display: none;
+            flex-direction: column;
         }
 
         .video-popup.visible {
-            display: block;
+            display: flex;
         }
 
         .video-popup-header {
@@ -1063,11 +1066,20 @@
         .video-popup-body {
             position: relative;
             background: #0f151a;
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px;
         }
 
         .video-popup-body img {
             width: 100%;
+            height: 100%;
+            object-fit: contain;
             display: block;
+            border-radius: 6px;
+            max-height: calc(100vh - 160px);
         }
 
         .video-popup-overlay {
@@ -1408,6 +1420,18 @@
             background: rgba(77, 136, 255, 0.15);
             border-color: rgba(77, 136, 255, 0.35);
             color: #3456b0;
+        }
+
+        .reconstruct-state[data-state="error"] {
+            background: rgba(214, 69, 69, 0.15);
+            border-color: rgba(214, 69, 69, 0.4);
+            color: #b83232;
+        }
+
+        .reconstruct-state[data-state="separating"] {
+            background: rgba(150, 111, 214, 0.15);
+            border-color: rgba(150, 111, 214, 0.4);
+            color: #6f4fb0;
         }
 
         .reconstruct-badges {
@@ -2051,6 +2075,7 @@
         let lastReconstructPhase = null;
         let visionPopupDismissed = false;
         let visionLastTimestamp = 0;
+        let lastVisionTargetCar = null;
 
         // 初始化队形预览画布
         function initFormationPreview() {
@@ -2936,6 +2961,16 @@
             closeBtn.addEventListener('click', () => {
                 visionPopupDismissed = true;
                 setPopupVisible(false);
+                lastVisionTargetCar = null;
+                const imageEl = document.getElementById('videoPopupImage');
+                if (imageEl) {
+                    imageEl.src = '';
+                }
+                fetch('/api/vision/select', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ car_id: '' })
+                }).catch(() => {});
             });
         }
 
@@ -2948,6 +2983,12 @@
             }
 
             try {
+                visionPopupDismissed = false;
+                setPopupVisible(true);
+                const imageEl = document.getElementById('videoPopupImage');
+                if (imageEl) {
+                    imageEl.src = '';
+                }
                 const response = await fetch('/api/vision/select', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -2955,13 +2996,24 @@
                 });
                 const result = await response.json();
                 if (result.success) {
-                    visionPopupDismissed = false;
-                    setPopupVisible(true);
-                    showMessage(`已请求 ${carId.replace('CAR', 'ROBOT#')} 监控`, 'success');
+                    // 使用 MJPEG 直接播放流，调整质量参数 q=80 可改
+                    if (imageEl) {
+                        imageEl.src = `/stream/mjpeg/${carId}?q=80`;
+                        imageEl.onerror = () => {
+                            if (!visionPopupDismissed) {
+                                setTimeout(() => {
+                                    if (!visionPopupDismissed) {
+                                        imageEl.src = `/stream/mjpeg/${carId}?q=80&t=${Date.now()}`;
+                                    }
+                                }, 800);
+                            }
+                        };
+                    }
+                    showMessage(`已请求 ${carId.replace('CAR', 'ROBOT#')} 监控（流模式）`, 'success');
                 }
             } catch (error) {
                 console.error('打开监控失败:', error);
-                showMessage('打开监控失败', 'error');
+                showMessage('打开监控失败，正在尝试保留窗口等待重连', 'error');
             }
         }
 
@@ -3712,6 +3764,7 @@
                 if (result.success) {
                     showMessage(result.message, 'success');
                     visionPopupDismissed = false;
+                    lastVisionTargetCar = null;
                     setPopupVisible(true);
                     getReconstructStatus();
                 } else {
@@ -3814,13 +3867,18 @@
                     }
                 } else if (phase === 'assembled') {
                     state = 'prepared';
+                } else if (phase === 'separating') {
+                    state = order.includes(carId) ? (carId === waitingCar ? 'assembling' : 'prepared') : 'idle';
+                } else if (phase === 'error') {
+                    state = order.includes(carId) ? 'error' : 'idle';
                 }
 
                 const labelMap = {
                     idle: '未开始',
                     preparing: '准备中',
                     prepared: '已准备',
-                    assembling: '拼接中'
+                    assembling: '拼接中',
+                    error: '错误'
                 };
 
                 badge.dataset.state = state;
@@ -3861,6 +3919,26 @@
                 }
                 if (isReconstructing && !visionPopupDismissed) {
                     setPopupVisible(true);
+                }
+
+                // 由服务器主导，跟随“当前应显示的小车”自动切换 MJPEG 流。
+                // vision_target_car = waiting_car_id or monitor_car_id，准备阶段即已就绪。
+                const visionTargetCar = status.vision_target_car || null;
+                if (isReconstructing && !visionPopupDismissed && visionTargetCar) {
+                    if (visionTargetCar !== lastVisionTargetCar) {
+                        const imageEl = document.getElementById('videoPopupImage');
+                        if (imageEl) {
+                            imageEl.src = `/stream/mjpeg/${visionTargetCar}?q=80&t=${Date.now()}`;
+                        }
+                        const carLabel = visionTargetCar.replace('CAR', 'ROBOT#');
+                        const carEl = document.getElementById('videoPopupCar');
+                        const titleEl = document.getElementById('videoPopupTitle');
+                        if (carEl) carEl.textContent = carLabel;
+                        if (titleEl) titleEl.textContent = `${carLabel} 视觉监控`;
+                        lastVisionTargetCar = visionTargetCar;
+                    }
+                } else if (!isReconstructing) {
+                    lastVisionTargetCar = null;
                 }
                 lastReconstructPhase = status.phase;
 
@@ -4067,7 +4145,7 @@
             setInterval(getReconstructStatus, 500);
             getRectangleExperimentStatus();
             setInterval(getRectangleExperimentStatus, 1000);
-            setInterval(fetchVisionImage, 100);
+            // 改为使用 MJPEG 流播放弹窗时的画面，轮询接口由备用路径保留但不主动频繁调用
             applyDefaultReconstructOrder();
 
             canvas.addEventListener('click', function(e) {
