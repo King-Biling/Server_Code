@@ -1,0 +1,8 @@
+[15:45:48.000] HEARTBEAT [CAR1] x=1.50 y=2.30 yaw=45.2
+[15:45:49.100] PREP_OK [CAR1] status=准备完成
+[15:45:50.200] HEARTBEAT [CAR2] x=1.40 y=2.40 yaw=44.8
+[15:45:51.300] STEP_ACK [CAR1] status=开始组装
+[15:45:52.400] DIAG [CAR1] level=I code=IMG_READY
+[15:45:53.500] LOG msg=发送拼接指令: [R,STEP,CAR1,POS=HEAD]
+[15:45:54.600] STEP_OK [CAR1] status=拼接完成
+[15:45:55.700] LOG msg=小车 CAR1 拼接完成，开始下一辆: CAR2
