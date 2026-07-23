@@ -805,9 +805,11 @@ class UDPServer:
                                 f"{car.velocity['vy']:.4f} {car.velocity['vz']:.4f}")
                     broadcast_parts.append(car_data)
                 broadcast_msg = " ".join(broadcast_parts) + "]"
-                
+                print(f"📡 广播第 {group_index + 1}/{total_groups} 组小车数据: {broadcast_msg}")
+
+                # 发送广播消息 - 使用子网广播地址
                 success = self.broadcast_server.broadcast_data(broadcast_msg)
-                if not success:
+                if not success:    
                     all_success = False
                 for car in group_cars.values():
                     car.last_broadcast_time = current_time
