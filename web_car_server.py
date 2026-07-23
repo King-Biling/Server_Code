@@ -394,9 +394,9 @@ class UDPServer:
                 broadcast_msg = " ".join(broadcast_parts) + "]"
                 print(f"📡 广播第 {group_index + 1}/{total_groups} 组小车数据: {broadcast_msg}")
 
-                # 发送广播消息 - 使用子网广播地址
+                # 发送广播消息 - 使用子网广播地址+
                 success = self.broadcast_server.broadcast_data(broadcast_msg)
-                if not success:
+                if not success:    
                     all_success = False
 
                 # 更新组内小车的最后广播时间
