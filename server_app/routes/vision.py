@@ -87,13 +87,70 @@ def scan_and_bind_vision_devices():
             binder = state.vision_state.get("binder")
         if not binder:
             return
+        camera_manager = vision_ops.camera_manager
+        camera_manager.stop_all_except(keep_index=-1)
+        time.sleep(0.3)
         mapping = binder.scan_and_bind()
         with state.vision_lock:
             state.vision_state["bound_cameras"] = mapping
             state.vision_state["last_warning"] = None if mapping else "未绑定到任何摄像头"
+        if mapping and binder:
+            first_cam = next(iter(mapping.values()), None)
+            if first_cam is not None:
+                camera_manager.switch_to(first_cam, binder)
 
     threading.Thread(target=_scan_task, daemon=True).start()
     return jsonify({'success': True, 'message': '已开始重新扫描摄像头'})
+
+
+@vision_bp.route('/api/vision/bind/manual', methods=['POST'])
+def manual_bind_vision_devices():
+    """手动绑定摄像头到小车。请求体: {"binding": {"CAR1": 0, "CAR2": 1, ...}}"""
+    data = request.get_json(silent=True) or {}
+    binding_map = data.get('binding', {})
+    if not binding_map:
+        return jsonify({'success': False, 'message': '缺少绑定映射 binding'}), 400
+
+    parsed = {}
+    for car_id, cam_index in binding_map.items():
+        try:
+            parsed[str(car_id).upper()] = int(cam_index)
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'message': f'无效的绑定参数: {car_id}={cam_index}'}), 400
+
+    with state.vision_lock:
+        binder = state.vision_state.get("binder")
+    if not binder:
+        return jsonify({'success': False, 'message': '视觉模块未初始化'}), 500
+
+    camera_manager = vision_ops.camera_manager
+    camera_manager.stop_all_except(keep_index=-1)
+    time.sleep(0.3)
+    result = binder.manual_bind(parsed)
+    with state.vision_lock:
+        state.vision_state["bound_cameras"] = result
+        state.vision_state["last_warning"] = None if result else "手动绑定失败"
+    if result and binder:
+        first_cam = next(iter(result.values()), None)
+        if first_cam is not None:
+            camera_manager.switch_to(first_cam, binder)
+
+    return jsonify({'success': True, 'message': '手动绑定完成', 'bound_cameras': result})
+
+
+@vision_bp.route('/api/vision/cameras')
+def list_available_cameras():
+    """列出系统中可用的摄像头索引和分辨率。"""
+    with state.vision_lock:
+        binder = state.vision_state.get("binder")
+    if not binder:
+        return jsonify({'success': False, 'cameras': []}), 500
+
+    try:
+        cameras = binder.list_available_cameras()
+        return jsonify({'success': True, 'cameras': cameras})
+    except Exception as e:
+        return jsonify({'success': False, 'cameras': [], 'error': str(e)}), 500
 
 
 @vision_bp.route('/stream/mjpeg/<car_id>')
@@ -106,20 +163,10 @@ def mjpeg_stream(car_id):
         binder = state.vision_state.get('binder')
     cam_index = bound.get(car_id)
     if cam_index is None:
-        # 未绑定时先尝试重新扫描一次，避免“直接打不开”
-        try:
-            if binder:
-                bound = binder.scan_and_bind()
-                with state.vision_lock:
-                    state.vision_state['bound_cameras'] = bound
-                cam_index = bound.get(car_id)
-        except Exception:
-            cam_index = None
-    if cam_index is None:
         def _fallback_gen():
             try:
                 placeholder_img = 255 * np.ones((240, 320, 3), dtype=np.uint8)
-                cv2.putText(placeholder_img, 'CAMERA NOT READY', (18, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+                cv2.putText(placeholder_img, 'CAMERA NOT BOUND', (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
                 ok, buf = cv2.imencode('.jpg', placeholder_img, [int(cv2.IMWRITE_JPEG_QUALITY), int(60)])
                 jpg = buf.tobytes() if ok else b''
             except Exception:

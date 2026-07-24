@@ -90,11 +90,11 @@ def create_app():
 
 
 def _init_vision():
-    """加载本地视觉引擎，交互选择部署车辆并完成摄像头绑定，随后启动视觉线程。
+    """加载本地视觉引擎，初始化 binder/estimator，等待用户在 Web 界面手动绑定摄像头。
 
-    与原实现一致：视觉模块导入失败或绑定异常均不阻断服务器启动。
+    不再自动扫描绑定，避免内置摄像头和 USB 总线冲突问题。
+    用户通过 /api/vision/bind/manual 接口手动指定 {CAR_ID: CAMERA_INDEX} 映射。
     """
-    # 把视觉引擎目录加入 sys.path，便于导入 Car_vision_system
     if config.VISION_MODULE_DIR not in sys.path:
         sys.path.append(config.VISION_MODULE_DIR)
 
@@ -104,28 +104,24 @@ def _init_vision():
         print(f" 本地视觉模块导入失败: {e}")
         return
 
-    # 把视觉配置注入共享状态，供 vision 模块的设备选择函数使用
     with state.vision_lock:
         state.vision_state["vision_config"] = VISION_CONFIG
 
     try:
-        # 模板目录指向 Car_vision_system/templates，保持与原实现一致
         if "TEMPLATE_DIR" in VISION_CONFIG:
             VISION_CONFIG["TEMPLATE_DIR"] = os.path.join(
                 config.VISION_MODULE_DIR, "templates"
             )
         binder = DeviceBinder(VISION_CONFIG)
         estimator = PoseEstimator(VISION_CONFIG)
-        available_ids = vision.get_available_car_ids()
-        selected_cars = vision.prompt_deployed_cars(available_ids)
-        print(f" 本次部署车辆: {selected_cars}")
-        try:
-            if not vision.bind_vision_until_ready(binder, estimator, selected_cars):
-                print(" 摄像头绑定未完成，系统退出")
-                sys.exit(1)
-        except KeyboardInterrupt:
-            print("\n 已手动退出摄像头绑定，系统退出")
-            sys.exit(1)
+
+        with state.vision_lock:
+            state.vision_state["binder"] = binder
+            state.vision_state["estimator"] = estimator
+            state.vision_state["bound_cameras"] = {}
+            state.vision_state["last_warning"] = "请在控制面板中手动绑定摄像头"
+
+        print(" 视觉引擎已初始化，等待手动绑定摄像头（Web界面 -> 摄像头绑定）")
 
         threading.Thread(target=vision.vision_loop, daemon=True).start()
         print(" 本地视觉线程已启动")

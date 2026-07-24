@@ -30,7 +30,7 @@ class DeviceBinder:
         self._load_templates()
 
     def _load_templates(self):
-        """加载灰度 OSD 模板到内�?"""
+        """加载灰度 OSD 模板到内存"""
         template_dir = self.config["TEMPLATE_DIR"]
         if not os.path.exists(template_dir):
             print(f" [Binder] 找不到模板文件夹 '{template_dir}'，请先运行截图脚本！")
@@ -42,7 +42,7 @@ class DeviceBinder:
                 tmpl = cv2.imread(os.path.join(template_dir, filename), cv2.IMREAD_GRAYSCALE)
                 if tmpl is not None:
                     self.template_dict[channel_name] = tmpl
-        print(f"📂 [Binder] 成功加载 {len(self.template_dict)} 个频道模板: {list(self.template_dict.keys())}")
+        print(f" [Binder] 成功加载 {len(self.template_dict)} 个频道模板: {list(self.template_dict.keys())}")
 
     def _open_camera(self, index):
         """安全打开相机，强制 MJPG 与分辨率限制"""
@@ -53,30 +53,40 @@ class DeviceBinder:
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.config["FRAME_HEIGHT"])
             actual_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
             actual_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
-            print(f"📷 [Binder] 摄像头索引 {index} 打开成功，分辨率 {actual_w}x{actual_h}")
+            print(f" [Binder] 摄像头索引 {index} 打开成功，分辨率 {actual_w}x{actual_h}")
         else:
-            print(f"⚠️ [Binder] 摄像头索引 {index} 打开失败")
+            print(f" [Binder] 摄像头索引 {index} 打开失败")
         return cap
 
     def _match_channel(self, frame):
-        """纯灰度大范围滑窗匹配 OSD 频道"""
+        """纯灰度大范围滑窗匹配 OSD 频道，返回 (频道名, 分数)，并打印 Top3 候选"""
         roi = frame[self.config["SEARCH_ROI"][0]:self.config["SEARCH_ROI"][1], 
                     self.config["SEARCH_ROI"][2]:self.config["SEARCH_ROI"][3]]
         gray_search_area = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
 
         best_match = None
         highest_score = 0.0
+        all_scores = {}
 
         for channel_name, template in self.template_dict.items():
             if gray_search_area.shape[0] < template.shape[0] or gray_search_area.shape[1] < template.shape[1]:
                 continue
             res = cv2.matchTemplate(gray_search_area, template, cv2.TM_CCOEFF_NORMED)
             _, max_val, _, _ = cv2.minMaxLoc(res)
+            all_scores[channel_name] = max_val
             
             if max_val > highest_score and max_val > 0.70:
                 highest_score = max_val
                 best_match = channel_name
-                
+
+        if best_match:
+            sorted_scores = sorted(all_scores.items(), key=lambda x: x[1], reverse=True)[:3]
+            top3_str = ", ".join(f"{ch}={sc:.3f}" for ch, sc in sorted_scores)
+            gap = sorted_scores[0][1] - (sorted_scores[1][1] if len(sorted_scores) > 1 else 0)
+            print(f"   [匹配] 最佳={best_match}({highest_score:.3f}) 差距={gap:.3f} Top3: {top3_str}")
+            if gap < 0.05:
+                print(f"   [匹配警告] 最佳与次佳分数差距过小({gap:.3f})，可能误匹配！")
+
         return best_match, highest_score
 
     def scan_and_bind(self, max_cameras=6):
@@ -98,7 +108,7 @@ class DeviceBinder:
                     cap.release()
                     continue
                 
-            for _ in range(10): cap.read() # 等待曝光稳定
+            for _ in range(10): cap.read()
             
             best_channel = None
             best_score = 0.0
@@ -114,13 +124,86 @@ class DeviceBinder:
 
             if best_channel and best_channel in self.config["CHANNEL_MAP"]:
                 car_id = self.config["CHANNEL_MAP"][best_channel]
-                bound_cameras[car_id] = index
-                print(f" 成功: 索引 [{index}] -> 频道 '{best_channel}' -> 绑定到小车 [{car_id}]")
+                if car_id in bound_cameras:
+                    old_index = bound_cameras[car_id]
+                    print(f"   [冲突] 小车 [{car_id}] 已绑定到索引 [{old_index}]，新索引 [{index}] 跳过(保留先匹配的结果)")
+                else:
+                    bound_cameras[car_id] = index
+                    print(f" 成功: 索引 [{index}] -> 频道 '{best_channel}' -> 绑定到小车 [{car_id}]")
+            else:
+                if best_channel:
+                    print(f"   跳过: 索引 [{index}] 匹配到频道 '{best_channel}' 但不在 CHANNEL_MAP 中")
             
             cap.release()
-            time.sleep(0.1) # 保护 USB 总线
+            time.sleep(0.1)
+
+        used_indices = list(bound_cameras.values())
+        duplicates = [i for i in set(used_indices) if used_indices.count(i) > 1]
+        if duplicates:
+            print(f"   [绑定异常] 以下摄像头索引被多辆车使用: {duplicates}，绑定结果不可靠！")
 
         print(f" [Binder] 绑定完成，当前映射关系: {bound_cameras}\n" + "="*50)
+        return bound_cameras
+
+    def list_available_cameras(self, max_cameras=6):
+        """枚举系统中可用的摄像头索引，返回每路摄像头的索引、分辨率、缩略图(base64)和OSD频道匹配结果。"""
+        import base64
+        available = []
+        for index in range(max_cameras):
+            cap = self._open_camera(index)
+            if cap.isOpened():
+                w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
+                h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
+                thumbnail_b64 = None
+                detected_channel = None
+                detected_score = 0.0
+                suggested_car = None
+                try:
+                    for _ in range(5):
+                        cap.grab()
+                    ret, frame = cap.read()
+                    if ret and frame is not None:
+                        small = cv2.resize(frame, (160, 120))
+                        ok, buf = cv2.imencode('.jpg', small, [int(cv2.IMWRITE_JPEG_QUALITY), 60])
+                        if ok:
+                            thumbnail_b64 = base64.b64encode(buf.tobytes()).decode('utf-8')
+                        if self.template_dict:
+                            ch, sc = self._match_channel(frame)
+                            if ch:
+                                detected_channel = ch
+                                detected_score = round(sc, 3)
+                                if ch in self.config["CHANNEL_MAP"]:
+                                    suggested_car = self.config["CHANNEL_MAP"][ch]
+                except Exception:
+                    pass
+                available.append({
+                    "index": index,
+                    "width": w,
+                    "height": h,
+                    "thumbnail": thumbnail_b64,
+                    "detected_channel": detected_channel,
+                    "detected_score": detected_score,
+                    "suggested_car": suggested_car,
+                })
+                cap.release()
+            else:
+                cap.release()
+            time.sleep(0.1)
+        return available
+
+    def manual_bind(self, binding_map):
+        """手动绑定摄像头到小车。binding_map: {CAR_ID: CAMERA_INDEX}，如 {"CAR1": 0, "CAR2": 2}"""
+        bound_cameras = {}
+        for car_id, cam_index in binding_map.items():
+            cap = self._open_camera(cam_index)
+            if cap.isOpened():
+                bound_cameras[car_id] = cam_index
+                cap.release()
+                print(f" [Binder] 手动绑定: 小车 [{car_id}] -> 摄像头索引 [{cam_index}]")
+            else:
+                cap.release()
+                print(f" [Binder] 手动绑定失败: 摄像头索引 [{cam_index}] 无法打开，小车 [{car_id}] 跳过")
+        print(f" [Binder] 手动绑定完成，映射关系: {bound_cameras}")
         return bound_cameras
 
 
@@ -129,47 +212,32 @@ class PoseEstimator:
     
     def __init__(self, config):
         self.config = config
-        self.camera_params_cache = {} # 缓存小车相机参数
+        self.camera_params_cache = {}
 
-        # 初始化 AprilTag 检测器
         aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_APRILTAG_36h11)
         aruco_params = cv2.aruco.DetectorParameters()
 
-        # === 性能关键调参：抑制“画面出现标签后候选四边形爆炸导致解码耗时飙升”的卡顿 ===
-        # 现象根因：detectMarkers 在高对比标签入画后会产生大量候选四边形，
-        # 每个候选都要用 36h11 字典(587码×4旋转)做汉明匹配，检测耗时从几毫秒涨到几十毫秒，
-        # 检测循环被拖慢 → 画面卡顿 + 帧陈旧 → 反而“识别不到”。以下参数用于砍掉无谓候选、
-        # 加快字典识别的早期拒绝，同时我们改在缩小图上检测（见 process_frame）。
         try:
-            # 候选周长范围：过滤掉过小/过大的轮廓，直接减少候选数量
             aruco_params.minMarkerPerimeterRate = 0.03
             aruco_params.maxMarkerPerimeterRate = 1.0
-            # 自适应阈值窗口：收窄范围+加大步长，减少阈值化 pass 数量
             aruco_params.adaptiveThreshWinSizeMin = 5
             aruco_params.adaptiveThreshWinSizeMax = 15
             aruco_params.adaptiveThreshWinSizeStep = 10
-            # 字典识别的早期拒绝：降低纠错率、限制边框误码，快速丢弃非标签候选
             aruco_params.errorCorrectionRate = 0.4
             aruco_params.maxErroneousBitsInBorderRate = 0.2
-            # 角点细化交给我们自己在全分辨率上做 subpix，这里关掉以省时
             aruco_params.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_NONE
         except Exception as e:
             print(f"[Estimator] 调整检测器参数失败(使用默认值): {e}")
 
         self.detector = cv2.aruco.ArucoDetector(aruco_dict, aruco_params)
 
-        # 检测下采样倍率：在 1/DETECT_SCALE 分辨率上做检测，之后把角点放大回全分辨率并用
-        # cornerSubPix 精修，兼顾“检测提速(候选更少、每候选更便宜)”与“位姿精度不损失”。
         self.detect_scale = int(self.config.get("DETECT_SCALE", 2))
         if self.detect_scale < 1:
             self.detect_scale = 1
         self._subpix_criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.01)
 
-        # 最近一次检测到的全分辨率角点(shape (4,2))，供“显示线程”轻量叠加标签框用；
-        # None 表示当前帧未检测到。检测线程写、MJPEG 线程读，仅用于显示允许极短竞态。
         self.last_tag_corners = None
 
-        # 定义 3D 物理角点
         half_s = self.config["TAG_SIZE"] / 2.0
         self.object_points = np.array([
             [-half_s,  half_s, 0], [ half_s,  half_s, 0],
@@ -193,11 +261,11 @@ class PoseEstimator:
             params_path = local_path
 
         if not params_path:
-            print(f"⚠️[Estimator] 找不到 {car_id} 的标定文件 {filename}")
+            print(f"[Estimator] 找不到 {car_id} 的标定文件 {filename}")
             self.camera_params_cache[car_id] = (None, None)
             return None, None
 
-        print(f"📌 [Estimator] 使用标定文件: {params_path}")
+        print(f"[Estimator] 使用标定文件: {params_path}")
         data = np.load(params_path)
         self.camera_params_cache[car_id] = (data['mtx'], data['dist'])
         return data['mtx'], data['dist']
@@ -213,7 +281,6 @@ class PoseEstimator:
 
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        # 在缩小图上做检测（候选更少、每候选更便宜），显著降低“标签入画后”的检测耗时。
         scale = self.detect_scale
         if scale > 1:
             small = cv2.resize(gray, None, fx=1.0 / scale, fy=1.0 / scale,
@@ -223,16 +290,11 @@ class PoseEstimator:
         corners, ids, _ = self.detector.detectMarkers(small)
 
         if ids is not None and len(ids) > 0:
-            # 把缩小图上的角点坐标放大回全分辨率
             if scale > 1:
                 corners = [c * float(scale) for c in corners]
 
             tag_corners = corners[0][0].astype(np.float32)
 
-            # 在全分辨率灰度图上对角点做亚像素精修，找回下采样损失的精度。
-            # 注意 cornerSubPix 要求 (N,1,2) 连续 float32 数组，且必须使用其返回值
-            # （Python 版对传入数组的 in-place 更新不可靠）。这里之前直接传 (4,2)
-            # 导致标签入画后每帧抛异常 -> 检测结果永远发布不出去（“检测不到标签”）。
             try:
                 pts = np.ascontiguousarray(tag_corners.reshape(-1, 1, 2), dtype=np.float32)
                 refined = cv2.cornerSubPix(
@@ -240,7 +302,6 @@ class PoseEstimator:
                 )
                 tag_corners = refined.reshape(-1, 2).astype(np.float32)
             except Exception:
-                # 精修失败不致命：退回缩放后的角点，仍可解算位姿
                 pass
 
             success, rvec, tvec = cv2.solvePnP(
@@ -248,50 +309,43 @@ class PoseEstimator:
             )
 
             if success:
-                # 提取数据
                 x_offset = tvec[0][0]
                 z_dist = tvec[2][0]
                 rmat, _ = cv2.Rodrigues(rvec)
                 euler_angles, _, _, _, _, _ = cv2.RQDecomp3x3(rmat)
                 yaw_angle = euler_angles[1]
 
-                # 保存全分辨率角点，供显示线程轻量画框（不在此处画，避免检测线程做绘制/编码）
                 self.last_tag_corners = tag_corners.copy()
 
                 return True, z_dist, x_offset, yaw_angle, frame
 
-        # 未检测到有效标签
         self.last_tag_corners = None
         return False, 0, 0, 0, frame
 
 
 # ================= 模拟服务器主程序 =================
 def main():
-    # 1. 实例化模块
     binder = DeviceBinder(CONFIG)
     estimator = PoseEstimator(CONFIG)
     
-    # 2. 执行硬件绑定
     bound_cameras = binder.scan_and_bind()
     if not bound_cameras:
-        print("❌未绑定任何设备，系统退出")
+        print("未绑定任何设备，系统退出")
         return
 
-    print("🚀系统已就绪，请【开启小车图传电源】！")
-    print("👉按键 [1-8] 切换小车视角 | [Q] 退出")
+    print("系统已就绪，请开启小车图传电源！")
+    print("按键 [1-8] 切换小车视角 | [Q] 退出")
 
-    # 3. 初始化热切换状态
     active_car_id = list(bound_cameras.keys())[0]
     cap = None
 
     try:
         while True:
-            # 维护相机流（按需打开，释放带宽）
             if cap is None:
                 cam_idx = bound_cameras.get(active_car_id)
                 if cam_idx is not None:
                     print(f"切换到小车 {active_car_id} (USB 索引: {cam_idx})")
-                    cap = binder._open_camera(cam_idx) # 复用安全打开相机的逻辑
+                    cap = binder._open_camera(cam_idx)
             
             ret, frame = cap.read() if cap else (False, None)
             
@@ -337,4 +391,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-    

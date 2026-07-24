@@ -1662,18 +1662,25 @@
                                         </div>
 
                                         <div class="control-section">
-                                            <h3>视觉监控</h3>
+                                            <h3>摄像头绑定</h3>
                                             <div style="display: grid; gap: 8px;">
+                                                <button class="broadcast-btn broadcast-on" onclick="scanCameras()" style="font-size: 10px; padding: 4px 8px;">扫描可用摄像头</button>
+                                                <div id="cameraBindList" style="display: grid; gap: 6px;"></div>
+                                                <div class="broadcast-controls">
+                                                    <button class="broadcast-btn broadcast-on" onclick="applyManualBind()">确认绑定</button>
+                                                    <button class="broadcast-btn broadcast-off" onclick="scanVisionDevices()">自动扫描绑定</button>
+                                                </div>
+                                            </div>
+                                            <div style="display: grid; gap: 8px; margin-top: 8px;">
                                                 <select id="visionMonitorSelector" class="coord-input">
                                                     <option value="">-- 选择小车 --</option>
                                                 </select>
                                                 <div class="broadcast-controls">
                                                     <button class="broadcast-btn broadcast-on" onclick="openVisionMonitor()">打开监控</button>
-                                                    <button class="broadcast-btn broadcast-off" onclick="scanVisionDevices()">重新扫描</button>
                                                 </div>
                                             </div>
                                             <div style="font-size: 10px; color: var(--text-1); margin-top: 6px;">
-                                                监控画面将以弹窗形式显示，不占用控制面板空间
+                                                先扫描摄像头，为每辆小车选择对应的摄像头索引，再确认绑定
                                             </div>
                                         </div>
 
@@ -3024,13 +3031,132 @@
                 });
                 const result = await response.json();
                 if (result.success) {
-                    showMessage('已开始重新扫描摄像头', 'success');
+                    showMessage('已开始自动扫描绑定', 'success');
+                    setTimeout(refreshBindStatus, 3000);
                 } else {
                     showMessage('扫描请求失败', 'error');
                 }
             } catch (error) {
                 console.error('扫描摄像头失败:', error);
                 showMessage('扫描摄像头失败', 'error');
+            }
+        }
+
+        async function scanCameras() {
+            try {
+                const response = await fetch('/api/vision/cameras');
+                const result = await response.json();
+                if (!result.success) {
+                    showMessage('扫描摄像头失败: ' + (result.error || '未知错误'), 'error');
+                    return;
+                }
+                const cameras = result.cameras || [];
+                const bindList = document.getElementById('cameraBindList');
+                if (!bindList) return;
+
+                const statusResp = await fetch('/api/vision/status');
+                const statusData = await statusResp.json();
+                const boundCameras = statusData.bound_cameras || {};
+
+                const carIds = [];
+                const selector = document.getElementById('visionMonitorSelector');
+                if (selector) {
+                    for (const opt of selector.options) {
+                        if (opt.value && opt.value.startsWith('CAR')) {
+                            carIds.push(opt.value);
+                        }
+                    }
+                }
+                if (carIds.length === 0) {
+                    carIds.push('CAR1', 'CAR2', 'CAR3', 'CAR4');
+                }
+
+                let html = '<div style="font-size:10px; color:var(--text-1); margin-bottom:6px;">检测到的摄像头预览：</div>';
+                for (const cam of cameras) {
+                    const chInfo = cam.detected_channel ? `频道 ${cam.detected_channel} (${cam.detected_score})` : '未识别频道';
+                    const carInfo = cam.suggested_car ? `→ 建议绑定 ${cam.suggested_car}` : '';
+                    html += `<div style="display:flex; align-items:center; gap:8px; margin-bottom:6px; padding:4px; border:1px solid var(--line-1); border-radius:4px; background:var(--panel-2);">`;
+                    if (cam.thumbnail) {
+                        html += `<img src="data:image/jpeg;base64,${cam.thumbnail}" style="width:80px; height:60px; border-radius:3px; object-fit:cover; flex-shrink:0;">`;
+                    } else {
+                        html += `<div style="width:80px; height:60px; background:#333; border-radius:3px; display:flex; align-items:center; justify-content:center; color:#666; font-size:9px; flex-shrink:0;">无画面</div>`;
+                    }
+                    html += `<div style="flex:1;"><div style="font-weight:bold; color:var(--text-0);">摄像头 ${cam.index}</div>`;
+                    html += `<div style="color:var(--text-1);">${cam.width}x${cam.height} | ${chInfo} ${carInfo}</div></div></div>`;
+                }
+
+                html += '<div style="font-size:10px; color:var(--text-1); margin: 8px 0 4px 0; border-top: 1px solid var(--line-1); padding-top: 8px;">绑定配置：</div>';
+                for (const carId of carIds) {
+                    const currentIdx = boundCameras[carId];
+                    const suggestedCam = cameras.find(c => c.suggested_car === carId);
+                    const defaultIdx = suggestedCam ? suggestedCam.index : currentIdx;
+                    html += `<div style="display: flex; align-items: center; gap: 6px; font-size: 10px;">
+                        <span style="min-width: 50px; color: var(--text-1);">${carId.replace('CAR', 'ROBOT#')}</span>
+                        <select id="bindCam_${carId}" class="coord-input" style="flex:1; font-size: 10px; padding: 2px 4px;">
+                            <option value="">-- 未绑定 --</option>`;
+                    for (const cam of cameras) {
+                        const selected = (defaultIdx === cam.index) ? 'selected' : '';
+                        const label = cam.detected_channel
+                            ? `摄像头 ${cam.index} (${cam.width}x${cam.height}) [${cam.detected_channel}${cam.suggested_car ? '→'+cam.suggested_car : ''}]`
+                            : `摄像头 ${cam.index} (${cam.width}x${cam.height})`;
+                        html += `<option value="${cam.index}" ${selected}>${label}</option>`;
+                    }
+                    html += `</select></div>`;
+                }
+                bindList.innerHTML = html;
+                showMessage(`发现 ${cameras.length} 个摄像头，请为每辆小车选择对应摄像头`, 'success');
+            } catch (error) {
+                console.error('扫描摄像头失败:', error);
+                showMessage('扫描摄像头失败', 'error');
+            }
+        }
+
+        async function applyManualBind() {
+            const bindList = document.getElementById('cameraBindList');
+            if (!bindList) return;
+            const selects = bindList.querySelectorAll('select');
+            const binding = {};
+            for (const sel of selects) {
+                const carId = sel.id.replace('bindCam_', '');
+                const camIndex = sel.value;
+                if (camIndex !== '') {
+                    binding[carId] = parseInt(camIndex);
+                }
+            }
+            if (Object.keys(binding).length === 0) {
+                showMessage('请至少为一辆小车选择摄像头', 'error');
+                return;
+            }
+            try {
+                const response = await fetch('/api/vision/bind/manual', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ binding })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    showMessage('手动绑定成功: ' + JSON.stringify(result.bound_cameras), 'success');
+                    setTimeout(refreshBindStatus, 500);
+                } else {
+                    showMessage('绑定失败: ' + result.message, 'error');
+                }
+            } catch (error) {
+                console.error('手动绑定失败:', error);
+                showMessage('手动绑定失败', 'error');
+            }
+        }
+
+        async function refreshBindStatus() {
+            try {
+                const response = await fetch('/api/vision/status');
+                const data = await response.json();
+                const bound = data.bound_cameras || {};
+                const warning = data.warning;
+                if (warning) {
+                    showMessage(warning, 'error');
+                }
+            } catch (error) {
+                console.error('获取绑定状态失败:', error);
             }
         }
 

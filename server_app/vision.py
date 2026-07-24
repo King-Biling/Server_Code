@@ -677,26 +677,10 @@ def prompt_deployed_cars(available_ids):
 
 
 def bind_vision_until_ready(binder, estimator, selected_cars):
-    """反复扫描摄像头直到选定车辆全部绑定成功，随后写入视觉状态。"""
-    while True:
-        try:
-            bound = binder.scan_and_bind()
-        except Exception as e:
-            print(f" 摄像头绑定失败，将重新扫描: {e}")
-            time.sleep(0.8)
-            continue
-
-        missing = [car_id for car_id in selected_cars if car_id not in bound]
-        if not missing:
-            with state.vision_lock:
-                state.vision_state["binder"] = binder
-                state.vision_state["estimator"] = estimator
-                state.vision_state["bound_cameras"] = bound
-                state.vision_state["last_warning"] = None
-            return True
-
-        print(f" 未绑定到指定车辆: {missing}，即将重新扫描...")
-        with state.vision_lock:
-            state.vision_state["bound_cameras"] = bound
-            state.vision_state["last_warning"] = f"未绑定到指定车辆: {missing}"
-        time.sleep(0.8)
+    """将 binder/estimator 写入视觉状态，不再自动扫描绑定（改为手动绑定）。"""
+    with state.vision_lock:
+        state.vision_state["binder"] = binder
+        state.vision_state["estimator"] = estimator
+        state.vision_state["bound_cameras"] = {}
+        state.vision_state["last_warning"] = "请在控制面板中手动绑定摄像头"
+    return True
