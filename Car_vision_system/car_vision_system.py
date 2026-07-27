@@ -146,7 +146,7 @@ class DeviceBinder:
         return bound_cameras
 
     def list_available_cameras(self, max_cameras=6):
-        """枚举系统中可用的摄像头索引，返回每路摄像头的索引、分辨率、缩略图(base64)和OSD频道匹配结果。"""
+        """枚举系统中可用的摄像头索引，返回每路摄像头的索引、分辨率、缩略图(base64)。"""
         import base64
         available = []
         for index in range(max_cameras):
@@ -155,9 +155,6 @@ class DeviceBinder:
                 w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
                 h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
                 thumbnail_b64 = None
-                detected_channel = None
-                detected_score = 0.0
-                suggested_car = None
                 try:
                     for _ in range(5):
                         cap.grab()
@@ -167,13 +164,6 @@ class DeviceBinder:
                         ok, buf = cv2.imencode('.jpg', small, [int(cv2.IMWRITE_JPEG_QUALITY), 60])
                         if ok:
                             thumbnail_b64 = base64.b64encode(buf.tobytes()).decode('utf-8')
-                        if self.template_dict:
-                            ch, sc = self._match_channel(frame)
-                            if ch:
-                                detected_channel = ch
-                                detected_score = round(sc, 3)
-                                if ch in self.config["CHANNEL_MAP"]:
-                                    suggested_car = self.config["CHANNEL_MAP"][ch]
                 except Exception:
                     pass
                 available.append({
@@ -181,9 +171,6 @@ class DeviceBinder:
                     "width": w,
                     "height": h,
                     "thumbnail": thumbnail_b64,
-                    "detected_channel": detected_channel,
-                    "detected_score": detected_score,
-                    "suggested_car": suggested_car,
                 })
                 cap.release()
             else:

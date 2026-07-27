@@ -1491,6 +1491,343 @@
             color: var(--text-0);
             font-weight: 700;
         }
+
+        .vision-module-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            background: linear-gradient(135deg, rgba(47, 127, 111, 0.08), rgba(62, 168, 143, 0.04));
+            border: 1px solid rgba(47, 127, 111, 0.2);
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .vision-module-bar .vision-bar-icon {
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .vision-module-bar .vision-bar-title {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--accent-0);
+            white-space: nowrap;
+        }
+
+        .vision-module-bar .vision-bar-status {
+            font-size: 9px;
+            color: var(--text-1);
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .vision-module-bar .vision-bar-actions {
+            display: flex;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+
+        .vision-module-bar .vision-bar-btn {
+            font-size: 9px;
+            padding: 3px 7px;
+            border-radius: 5px;
+            border: 1px solid rgba(47, 127, 111, 0.3);
+            background: rgba(47, 127, 111, 0.1);
+            color: var(--accent-0);
+            cursor: pointer;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .vision-module-bar .vision-bar-btn:hover {
+            background: rgba(47, 127, 111, 0.2);
+        }
+
+        .vision-module-bar .vision-bar-btn.active {
+            background: rgba(47, 127, 111, 0.25);
+            border-color: var(--accent-0);
+        }
+
+        .manual-bind-popup {
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 960px;
+            max-width: calc(100vw - 40px);
+            max-height: calc(100vh - 40px);
+            background: rgba(16, 22, 28, 0.96);
+            border: 1px solid rgba(47, 127, 111, 0.4);
+            border-radius: 14px;
+            overflow: hidden;
+            z-index: 10001;
+            box-shadow: 0 24px 48px rgba(10, 18, 24, 0.5);
+            display: none;
+            flex-direction: column;
+        }
+
+        .manual-bind-popup.visible {
+            display: flex;
+        }
+
+        .manual-bind-popup-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 16px;
+            background: linear-gradient(120deg, rgba(38, 52, 64, 0.95), rgba(18, 26, 32, 0.95));
+            color: #e6eef0;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.8px;
+            cursor: move;
+            user-select: none;
+            border-bottom: 1px solid rgba(47, 127, 111, 0.3);
+        }
+
+        .manual-bind-popup-close {
+            background: rgba(230, 238, 240, 0.12);
+            border: 1px solid rgba(230, 238, 240, 0.3);
+            color: #e6eef0;
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .manual-bind-popup-body {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            min-height: 520px;
+        }
+
+        .manual-bind-preview {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #0a0f14;
+            padding: 12px;
+            position: relative;
+            border-right: 1px solid rgba(120, 140, 150, 0.2);
+        }
+
+        .manual-bind-preview img {
+            max-width: 100%;
+            max-height: 480px;
+            object-fit: contain;
+            border-radius: 6px;
+            border: 1px solid rgba(120, 140, 150, 0.2);
+        }
+
+        .manual-bind-preview .no-frame-placeholder {
+            width: 480px;
+            height: 360px;
+            background: #151c22;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #556677;
+            font-size: 12px;
+            border: 1px dashed rgba(120, 140, 150, 0.3);
+        }
+
+        .manual-bind-preview-info {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            right: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 10px;
+            pointer-events: none;
+        }
+
+        .manual-bind-preview-info .cam-label {
+            background: rgba(0, 0, 0, 0.7);
+            color: #e6eef0;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 700;
+        }
+
+
+        .manual-bind-controls {
+            width: 260px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 14px;
+            background: rgba(20, 28, 34, 0.95);
+            overflow-y: auto;
+        }
+
+        .manual-bind-controls h4 {
+            font-size: 13px;
+            color: rgba(230, 238, 240, 0.8);
+            margin: 0;
+            padding-bottom: 4px;
+            border-bottom: 1px solid rgba(120, 140, 150, 0.2);
+            letter-spacing: 0.5px;
+        }
+
+        .manual-bind-controls select {
+            width: 100%;
+            padding: 6px 8px;
+            background: rgba(30, 40, 50, 0.9);
+            border: 1px solid rgba(120, 140, 150, 0.3);
+            border-radius: 6px;
+            color: #e6eef0;
+            font-size: 13px;
+            outline: none;
+        }
+
+        .manual-bind-controls select:focus {
+            border-color: rgba(47, 127, 111, 0.6);
+        }
+
+        .manual-bind-btn {
+            padding: 7px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid transparent;
+            text-align: center;
+            transition: background 0.15s;
+        }
+
+        .manual-bind-btn-primary {
+            background: rgba(47, 127, 111, 0.25);
+            border-color: rgba(47, 127, 111, 0.5);
+            color: #5fd4b8;
+        }
+
+        .manual-bind-btn-primary:hover {
+            background: rgba(47, 127, 111, 0.35);
+        }
+
+        .manual-bind-btn-secondary {
+            background: rgba(120, 140, 150, 0.12);
+            border-color: rgba(120, 140, 150, 0.3);
+            color: rgba(230, 238, 240, 0.7);
+        }
+
+        .manual-bind-btn-secondary:hover {
+            background: rgba(120, 140, 150, 0.2);
+        }
+
+        .manual-bind-btn-danger {
+            background: rgba(214, 69, 69, 0.15);
+            border-color: rgba(214, 69, 69, 0.35);
+            color: #e87070;
+        }
+
+        .manual-bind-btn-danger:hover {
+            background: rgba(214, 69, 69, 0.25);
+        }
+
+        .manual-bind-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .manual-bind-progress {
+            font-size: 13px;
+            color: rgba(230, 238, 240, 0.5);
+            text-align: center;
+        }
+
+        .manual-bind-mapping {
+            font-size: 13px;
+            color: rgba(230, 238, 240, 0.7);
+            line-height: 1.6;
+        }
+
+        .manual-bind-mapping .mapping-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 8px;
+            background: rgba(30, 40, 50, 0.6);
+            border-radius: 4px;
+            margin-bottom: 4px;
+        }
+
+        .manual-bind-mapping .mapping-row .car-label {
+            color: #5fd4b8;
+            font-weight: 600;
+        }
+
+        .manual-bind-mapping .mapping-row .cam-label {
+            color: rgba(230, 238, 240, 0.6);
+        }
+
+        .manual-bind-mapping .mapping-row .channel-tag {
+            color: #d4a85f;
+            font-size: 12px;
+        }
+
+        .channel-map-display {
+            font-size: 13px;
+            color: rgba(230, 238, 240, 0.5);
+            line-height: 1.6;
+            padding: 8px;
+            background: rgba(20, 28, 34, 0.8);
+            border-radius: 4px;
+            border: 1px solid rgba(120, 140, 150, 0.15);
+        }
+
+        .channel-map-display .cm-row {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            margin-bottom: 3px;
+        }
+
+        .channel-map-display .cm-channel {
+            color: #d4a85f;
+            font-weight: 600;
+            font-size: 14px;
+            min-width: 24px;
+        }
+
+        .channel-map-display .cm-arrow {
+            color: rgba(230, 238, 240, 0.3);
+            font-size: 13px;
+        }
+
+        .channel-map-display .cm-car {
+            color: #5fd4b8;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .channel-map-display .cm-arrow {
+            color: rgba(230, 238, 240, 0.3);
+        }
+
+        .channel-map-display .cm-car {
+            color: #5fd4b8;
+            font-weight: 600;
+        }
+
+        .channel-map-display .cm-cam {
+            color: rgba(230, 238, 240, 0.4);
+            font-size: 11px;
+        }
     </style>
 </head>
 <body>
@@ -1617,6 +1954,32 @@
                         </div>
                         <div class="right-controls">
                             <div class="collapsible-section">
+                                <div class="section-header" onclick="toggleSection('visionModuleSection')">
+                                    视觉监控
+                                </div>
+                                <div class="section-content expanded" id="visionModuleSection">
+                                    <div class="control-panel compact-control">
+                                        <div class="control-section">
+                                            <h3>摄像头绑定</h3>
+                                            <div style="display: grid; gap: 8px;">
+                                                <button class="broadcast-btn broadcast-on" onclick="openManualBindPopup()" style="font-size: 10px; padding: 4px 8px;">手动绑定摄像头</button>
+
+                                            </div>
+                                            <div class="broadcast-status" id="visionBarStatus" style="margin-top: 6px;">绑定状态: 未绑定</div>
+                                        </div>
+                                        <div class="control-section">
+                                            <h3>视觉监控</h3>
+                                            <div style="display: grid; gap: 8px;">
+                                                <select id="visionMonitorSelector" class="coord-input">
+                                                    <option value="">-- 选择小车 --</option>
+                                                </select>
+                                                <button class="broadcast-btn broadcast-on" onclick="openVisionMonitor()" style="font-size: 10px; padding: 4px 8px;">打开监控</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="collapsible-section">
                                 <div class="section-header" onclick="toggleSection('reconstructSection')">
                                     重构控制
                                 </div>
@@ -1662,29 +2025,7 @@
                                         </div>
 
                                         <div class="control-section">
-                                            <h3>摄像头绑定</h3>
-                                            <div style="display: grid; gap: 8px;">
-                                                <button class="broadcast-btn broadcast-on" onclick="scanCameras()" style="font-size: 10px; padding: 4px 8px;">扫描可用摄像头</button>
-                                                <div id="cameraBindList" style="display: grid; gap: 6px;"></div>
-                                                <div class="broadcast-controls">
-                                                    <button class="broadcast-btn broadcast-on" onclick="applyManualBind()">确认绑定</button>
-                                                    <button class="broadcast-btn broadcast-off" onclick="scanVisionDevices()">自动扫描绑定</button>
-                                                </div>
-                                            </div>
-                                            <div style="display: grid; gap: 8px; margin-top: 8px;">
-                                                <select id="visionMonitorSelector" class="coord-input">
-                                                    <option value="">-- 选择小车 --</option>
-                                                </select>
-                                                <div class="broadcast-controls">
-                                                    <button class="broadcast-btn broadcast-on" onclick="openVisionMonitor()">打开监控</button>
-                                                </div>
-                                            </div>
-                                            <div style="font-size: 10px; color: var(--text-1); margin-top: 6px;">
-                                                先扫描摄像头，为每辆小车选择对应的摄像头索引，再确认绑定
-                                            </div>
-                                        </div>
 
-                                        <div class="control-section">
                                             <h3>重构日志</h3>
                                             <div class="log-container" style="max-height: 150px; overflow-y: auto; border: 1px solid var(--line-1); border-radius: 4px; padding: 8px; background: var(--panel-2);">
                                                 <div id="reconstructLogs" style="font-size: 10px; line-height: 1.4; font-family: 'Courier New', monospace;">
@@ -1962,6 +2303,61 @@
         </div>
     </div>
 
+    <div class="manual-bind-popup" id="manualBindPopup">
+        <div class="manual-bind-popup-header" id="manualBindPopupHeader">
+            <span>手动绑定摄像头</span>
+            <button class="manual-bind-popup-close" id="manualBindPopupClose">×</button>
+        </div>
+        <div class="manual-bind-popup-body">
+            <div class="manual-bind-preview" id="manualBindPreview">
+                <div class="manual-bind-preview-info">
+                    <span class="cam-label" id="mbCamLabel">摄像头 -</span>
+
+                </div>
+                <div class="no-frame-placeholder" id="mbNoFrame">等待画面...</div>
+                <img id="mbPreviewImg" src="" alt="摄像头画面" style="display:none;">
+            </div>
+            <div class="manual-bind-controls">
+                <div class="manual-bind-progress" id="mbProgress">未开始</div>
+
+                <div>
+                    <h4>绑定到小车</h4>
+                    <select id="mbCarSelect">
+                        <option value="">-- 选择小车 --</option>
+                        <option value="CAR1">ROBOT#1</option>
+                        <option value="CAR2">ROBOT#2</option>
+                        <option value="CAR3">ROBOT#3</option>
+                        <option value="CAR4">ROBOT#4</option>
+                    </select>
+                </div>
+
+                <div style="display: flex; gap: 6px;">
+                    <button class="manual-bind-btn manual-bind-btn-primary" id="mbConfirmBtn" onclick="mbConfirmBind()" style="flex:1;" disabled>确认绑定</button>
+                    <button class="manual-bind-btn manual-bind-btn-secondary" id="mbSkipBtn" onclick="mbSkipCamera()" style="flex:1;" disabled>跳过</button>
+                </div>
+
+                <div style="display: flex; gap: 6px;">
+                    <button class="manual-bind-btn manual-bind-btn-secondary" id="mbRefreshBtn" onclick="mbRefreshFrame()" style="flex:1;" disabled>刷新画面</button>
+                    <button class="manual-bind-btn manual-bind-btn-danger" id="mbCancelBtn" onclick="mbCancelBind()" style="flex:1;">取消</button>
+                </div>
+
+                <div>
+                    <h4>已绑定关系</h4>
+                    <div class="manual-bind-mapping" id="mbBoundMapping">
+                        <div style="color: rgba(230,238,240,0.3); font-size: 9px;">暂无绑定</div>
+                    </div>
+                </div>
+
+                <div>
+                    <h4>频道映射表</h4>
+                    <div class="channel-map-display" id="mbChannelMapDisplay">
+                        加载中...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         // ==================== 广播配置 ====================
         const BROADCAST_CONFIG = {
@@ -2083,6 +2479,288 @@
         let visionPopupDismissed = false;
         let visionLastTimestamp = 0;
         let lastVisionTargetCar = null;
+
+        let mbActive = false;
+        let mbPollTimer = null;
+
+        async function openManualBindPopup() {
+            const popup = document.getElementById('manualBindPopup');
+            popup.classList.add('visible');
+            initManualBindPopupDrag();
+            await mbLoadChannelMap();
+            try {
+                const resp = await fetch('/api/vision/bind/manual/start', { method: 'POST' });
+                const result = await resp.json();
+                if (result.success) {
+                    mbActive = true;
+                    showMessage('手动绑定流程已启动，正在扫描摄像头...', 'success');
+                    mbSetButtonStates(true);
+                    mbPollTimer = setInterval(mbPollStatus, 800);
+                    setTimeout(mbPollStatus, 400);
+                } else {
+                    showMessage('启动手动绑定失败: ' + (result.message || ''), 'error');
+                }
+            } catch (e) {
+                showMessage('启动手动绑定失败', 'error');
+            }
+        }
+
+        function closeManualBindPopup() {
+            const popup = document.getElementById('manualBindPopup');
+            popup.classList.remove('visible');
+            if (mbPollTimer) {
+                clearInterval(mbPollTimer);
+                mbPollTimer = null;
+            }
+            mbActive = false;
+            mbSetButtonStates(false);
+        }
+
+        function initManualBindPopupDrag() {
+            const popup = document.getElementById('manualBindPopup');
+            const header = document.getElementById('manualBindPopupHeader');
+            const closeBtn = document.getElementById('manualBindPopupClose');
+            if (!popup || !header || !closeBtn) return;
+            closeBtn.onclick = () => {
+                mbCancelBind();
+            };
+            let dragging = false, offsetX = 0, offsetY = 0;
+            header.onmousedown = (e) => {
+                dragging = true;
+                const rect = popup.getBoundingClientRect();
+                offsetX = e.clientX - rect.left;
+                offsetY = e.clientY - rect.top;
+            };
+            window.addEventListener('mousemove', (e) => {
+                if (!dragging) return;
+                popup.style.left = `${e.clientX - offsetX}px`;
+                popup.style.top = `${e.clientY - offsetY}px`;
+                popup.style.transform = 'none';
+            });
+            window.addEventListener('mouseup', () => { dragging = false; });
+        }
+
+        async function mbPollStatus() {
+            if (!mbActive) return;
+            try {
+                const resp = await fetch('/api/vision/bind/manual/status');
+                const data = await resp.json();
+                mbUpdateUI(data);
+                if (data.finished) {
+                    mbActive = false;
+                    if (mbPollTimer) { clearInterval(mbPollTimer); mbPollTimer = null; }
+                    mbSetButtonStates(false);
+                    if (data.bound_so_far && Object.keys(data.bound_so_far).length > 0) {
+                        showMessage('摄像头绑定完成: ' + JSON.stringify(data.bound_so_far), 'success');
+                    }
+                    await refreshBindStatus();
+                    updateVisionBarStatus();
+                }
+            } catch (e) {}
+        }
+
+        function mbUpdateUI(data) {
+            const progressEl = document.getElementById('mbProgress');
+            const camLabelEl = document.getElementById('mbCamLabel');
+            const previewImg = document.getElementById('mbPreviewImg');
+            const noFrameEl = document.getElementById('mbNoFrame');
+            const carSelect = document.getElementById('mbCarSelect');
+            const mappingEl = document.getElementById('mbBoundMapping');
+
+            if (data.active && !data.finished) {
+                const cur = data.current_index + 1;
+                const total = data.total_cameras;
+                progressEl.textContent = `正在处理: ${cur} / ${total}`;
+
+                if (data.current_camera) {
+                    camLabelEl.textContent = `摄像头 ${data.current_camera.index} (${data.current_camera.width}x${data.current_camera.height})`;
+                }
+
+                if (data.current_frame) {
+                    previewImg.src = 'data:image/jpeg;base64,' + data.current_frame;
+                    previewImg.style.display = '';
+                    noFrameEl.style.display = 'none';
+                } else {
+                    previewImg.style.display = 'none';
+                    noFrameEl.style.display = '';
+                    noFrameEl.textContent = '无法获取画面，请点击刷新';
+                }
+
+                mbUpdateBoundMapping(data.bound_so_far || {});
+                mbUpdateCarSelectOptions(data.bound_so_far || {});
+            } else if (data.finished) {
+                progressEl.textContent = '绑定流程已完成';
+                mbUpdateBoundMapping(data.bound_so_far || {});
+            } else {
+                progressEl.textContent = '未开始';
+            }
+        }
+
+        function mbUpdateBoundMapping(boundSoFar) {
+            const mappingEl = document.getElementById('mbBoundMapping');
+            const entries = Object.entries(boundSoFar);
+            if (entries.length === 0) {
+                mappingEl.innerHTML = '<div style="color: rgba(230,238,240,0.3); font-size: 9px;">暂无绑定</div>';
+                return;
+            }
+            mappingEl.innerHTML = entries.map(([carId, camIdx]) =>
+                `<div class="mapping-row">
+                    <span class="car-label">${carId.replace('CAR', 'ROBOT#')}</span>
+                    <span class="cam-label">摄像头 ${camIdx}</span>
+                </div>`
+            ).join('');
+        }
+
+        function mbUpdateCarSelectOptions(boundSoFar) {
+            const carSelect = document.getElementById('mbCarSelect');
+            const currentVal = carSelect.value;
+            const allCars = ['CAR1', 'CAR2', 'CAR3', 'CAR4'];
+            const boundCars = Object.keys(boundSoFar);
+            carSelect.innerHTML = '<option value="">-- 选择小车 --</option>' +
+                allCars.map(carId => {
+                    const bound = boundCars.includes(carId);
+                    const label = `${carId.replace('CAR', 'ROBOT#')}${bound ? ' (已绑定)' : ''}`;
+                    return `<option value="${carId}" ${bound ? 'disabled' : ''}>${label}</option>`;
+                }).join('');
+            if (currentVal && !boundCars.includes(currentVal)) {
+                carSelect.value = currentVal;
+            }
+        }
+
+        function mbSetButtonStates(active) {
+            document.getElementById('mbConfirmBtn').disabled = !active;
+            document.getElementById('mbSkipBtn').disabled = !active;
+            document.getElementById('mbRefreshBtn').disabled = !active;
+        }
+
+        async function mbConfirmBind() {
+            const carSelect = document.getElementById('mbCarSelect');
+            const carId = carSelect.value;
+            if (!carId) {
+                showMessage('请选择要绑定的小车', 'error');
+                return;
+            }
+            try {
+                const resp = await fetch('/api/vision/bind/manual/confirm', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ car_id: carId })
+                });
+                const result = await resp.json();
+                if (result.success) {
+                    showMessage(`已绑定到 ${carId.replace('CAR', 'ROBOT#')}`, 'success');
+                    carSelect.value = '';
+                    if (result.finished) {
+                        mbActive = false;
+                        if (mbPollTimer) { clearInterval(mbPollTimer); mbPollTimer = null; }
+                        mbSetButtonStates(false);
+                        await refreshBindStatus();
+                        updateVisionBarStatus();
+                    } else {
+                        setTimeout(mbPollStatus, 300);
+                    }
+                } else {
+                    showMessage('绑定失败: ' + (result.message || ''), 'error');
+                }
+            } catch (e) {
+                showMessage('绑定请求失败', 'error');
+            }
+        }
+
+        async function mbSkipCamera() {
+            try {
+                const resp = await fetch('/api/vision/bind/manual/skip', { method: 'POST' });
+                const result = await resp.json();
+                if (result.success) {
+                    showMessage('已跳过当前摄像头', 'success');
+                    if (result.finished) {
+                        mbActive = false;
+                        if (mbPollTimer) { clearInterval(mbPollTimer); mbPollTimer = null; }
+                        mbSetButtonStates(false);
+                        await refreshBindStatus();
+                        updateVisionBarStatus();
+                    } else {
+                        setTimeout(mbPollStatus, 300);
+                    }
+                }
+            } catch (e) {
+                showMessage('跳过失败', 'error');
+            }
+        }
+
+        async function mbRefreshFrame() {
+            try {
+                const resp = await fetch('/api/vision/bind/manual/refresh', { method: 'POST' });
+                const result = await resp.json();
+                if (result.success && result.frame) {
+                    const previewImg = document.getElementById('mbPreviewImg');
+                    const noFrameEl = document.getElementById('mbNoFrame');
+                    previewImg.src = 'data:image/jpeg;base64,' + result.frame;
+                    previewImg.style.display = '';
+                    noFrameEl.style.display = 'none';
+
+                    showMessage('画面已刷新', 'success');
+                } else {
+                    showMessage('刷新失败，无法获取画面', 'error');
+                }
+            } catch (e) {
+                showMessage('刷新请求失败', 'error');
+            }
+        }
+
+        async function mbCancelBind() {
+            try {
+                await fetch('/api/vision/bind/manual/cancel', { method: 'POST' });
+            } catch (e) {}
+            closeManualBindPopup();
+            showMessage('手动绑定流程已取消', 'success');
+        }
+
+        async function mbLoadChannelMap() {
+            try {
+                const resp = await fetch('/api/vision/channel-map');
+                const data = await resp.json();
+                if (!data.success) return;
+                const displayEl = document.getElementById('mbChannelMapDisplay');
+                const channelMap = data.channel_map || {};
+                const boundCameras = data.bound_cameras || {};
+                const carToChannel = data.car_to_channel || {};
+
+                const allCars = ['CAR1', 'CAR2', 'CAR3', 'CAR4'];
+                let html = '';
+                for (const carId of allCars) {
+                    const channels = carToChannel[carId] || [];
+                    const camIdx = boundCameras[carId];
+                    const channelStr = channels.join(', ');
+                    html += `<div class="cm-row">
+                        <span class="cm-car">${carId.replace('CAR', 'R#')}</span>
+                        ${channelStr ? `<span class="cm-channel">${channelStr}</span><span class="cm-arrow">→</span>` : '<span class="cm-channel">-</span><span class="cm-arrow"></span>'}
+                        <span class="cm-car">${carId.replace('CAR', 'R#')}</span>
+                        ${camIdx !== undefined ? `<span class="cm-cam">(摄像头${camIdx})</span>` : '<span class="cm-cam">(未绑定)</span>'}
+                    </div>`;
+                }
+                displayEl.innerHTML = html || '<div style="color:rgba(230,238,240,0.3);">无映射数据</div>';
+            } catch (e) {
+                const displayEl = document.getElementById('mbChannelMapDisplay');
+                if (displayEl) displayEl.innerHTML = '<div style="color:rgba(230,238,240,0.3);">加载失败</div>';
+            }
+        }
+
+        async function updateVisionBarStatus() {
+            try {
+                const resp = await fetch('/api/vision/status');
+                const data = await resp.json();
+                const statusEl = document.getElementById('visionBarStatus');
+                const bound = data.bound_cameras || {};
+                const count = Object.keys(bound).length;
+                if (count > 0) {
+                    const details = Object.entries(bound).map(([c, i]) => `${c.replace('CAR', 'R#')}→Cam${i}`).join(', ');
+                    statusEl.textContent = `绑定状态: 已绑定 ${count} 路 (${details})`;
+                } else {
+                    statusEl.textContent = '绑定状态: 未绑定';
+                }
+            } catch (e) {}
+        }
 
         // 初始化队形预览画布
         function initFormationPreview() {
@@ -3024,127 +3702,6 @@
             }
         }
 
-        async function scanVisionDevices() {
-            try {
-                const response = await fetch('/api/vision/bind/scan', {
-                    method: 'POST'
-                });
-                const result = await response.json();
-                if (result.success) {
-                    showMessage('已开始自动扫描绑定', 'success');
-                    setTimeout(refreshBindStatus, 3000);
-                } else {
-                    showMessage('扫描请求失败', 'error');
-                }
-            } catch (error) {
-                console.error('扫描摄像头失败:', error);
-                showMessage('扫描摄像头失败', 'error');
-            }
-        }
-
-        async function scanCameras() {
-            try {
-                const response = await fetch('/api/vision/cameras');
-                const result = await response.json();
-                if (!result.success) {
-                    showMessage('扫描摄像头失败: ' + (result.error || '未知错误'), 'error');
-                    return;
-                }
-                const cameras = result.cameras || [];
-                const bindList = document.getElementById('cameraBindList');
-                if (!bindList) return;
-
-                const statusResp = await fetch('/api/vision/status');
-                const statusData = await statusResp.json();
-                const boundCameras = statusData.bound_cameras || {};
-
-                const carIds = [];
-                const selector = document.getElementById('visionMonitorSelector');
-                if (selector) {
-                    for (const opt of selector.options) {
-                        if (opt.value && opt.value.startsWith('CAR')) {
-                            carIds.push(opt.value);
-                        }
-                    }
-                }
-                if (carIds.length === 0) {
-                    carIds.push('CAR1', 'CAR2', 'CAR3', 'CAR4');
-                }
-
-                let html = '<div style="font-size:10px; color:var(--text-1); margin-bottom:6px;">检测到的摄像头预览：</div>';
-                for (const cam of cameras) {
-                    const chInfo = cam.detected_channel ? `频道 ${cam.detected_channel} (${cam.detected_score})` : '未识别频道';
-                    const carInfo = cam.suggested_car ? `→ 建议绑定 ${cam.suggested_car}` : '';
-                    html += `<div style="display:flex; align-items:center; gap:8px; margin-bottom:6px; padding:4px; border:1px solid var(--line-1); border-radius:4px; background:var(--panel-2);">`;
-                    if (cam.thumbnail) {
-                        html += `<img src="data:image/jpeg;base64,${cam.thumbnail}" style="width:80px; height:60px; border-radius:3px; object-fit:cover; flex-shrink:0;">`;
-                    } else {
-                        html += `<div style="width:80px; height:60px; background:#333; border-radius:3px; display:flex; align-items:center; justify-content:center; color:#666; font-size:9px; flex-shrink:0;">无画面</div>`;
-                    }
-                    html += `<div style="flex:1;"><div style="font-weight:bold; color:var(--text-0);">摄像头 ${cam.index}</div>`;
-                    html += `<div style="color:var(--text-1);">${cam.width}x${cam.height} | ${chInfo} ${carInfo}</div></div></div>`;
-                }
-
-                html += '<div style="font-size:10px; color:var(--text-1); margin: 8px 0 4px 0; border-top: 1px solid var(--line-1); padding-top: 8px;">绑定配置：</div>';
-                for (const carId of carIds) {
-                    const currentIdx = boundCameras[carId];
-                    const suggestedCam = cameras.find(c => c.suggested_car === carId);
-                    const defaultIdx = suggestedCam ? suggestedCam.index : currentIdx;
-                    html += `<div style="display: flex; align-items: center; gap: 6px; font-size: 10px;">
-                        <span style="min-width: 50px; color: var(--text-1);">${carId.replace('CAR', 'ROBOT#')}</span>
-                        <select id="bindCam_${carId}" class="coord-input" style="flex:1; font-size: 10px; padding: 2px 4px;">
-                            <option value="">-- 未绑定 --</option>`;
-                    for (const cam of cameras) {
-                        const selected = (defaultIdx === cam.index) ? 'selected' : '';
-                        const label = cam.detected_channel
-                            ? `摄像头 ${cam.index} (${cam.width}x${cam.height}) [${cam.detected_channel}${cam.suggested_car ? '→'+cam.suggested_car : ''}]`
-                            : `摄像头 ${cam.index} (${cam.width}x${cam.height})`;
-                        html += `<option value="${cam.index}" ${selected}>${label}</option>`;
-                    }
-                    html += `</select></div>`;
-                }
-                bindList.innerHTML = html;
-                showMessage(`发现 ${cameras.length} 个摄像头，请为每辆小车选择对应摄像头`, 'success');
-            } catch (error) {
-                console.error('扫描摄像头失败:', error);
-                showMessage('扫描摄像头失败', 'error');
-            }
-        }
-
-        async function applyManualBind() {
-            const bindList = document.getElementById('cameraBindList');
-            if (!bindList) return;
-            const selects = bindList.querySelectorAll('select');
-            const binding = {};
-            for (const sel of selects) {
-                const carId = sel.id.replace('bindCam_', '');
-                const camIndex = sel.value;
-                if (camIndex !== '') {
-                    binding[carId] = parseInt(camIndex);
-                }
-            }
-            if (Object.keys(binding).length === 0) {
-                showMessage('请至少为一辆小车选择摄像头', 'error');
-                return;
-            }
-            try {
-                const response = await fetch('/api/vision/bind/manual', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ binding })
-                });
-                const result = await response.json();
-                if (result.success) {
-                    showMessage('手动绑定成功: ' + JSON.stringify(result.bound_cameras), 'success');
-                    setTimeout(refreshBindStatus, 500);
-                } else {
-                    showMessage('绑定失败: ' + result.message, 'error');
-                }
-            } catch (error) {
-                console.error('手动绑定失败:', error);
-                showMessage('手动绑定失败', 'error');
-            }
-        }
 
         async function refreshBindStatus() {
             try {
@@ -3155,6 +3712,7 @@
                 if (warning) {
                     showMessage(warning, 'error');
                 }
+                updateVisionBarStatus();
             } catch (error) {
                 console.error('获取绑定状态失败:', error);
             }
@@ -4257,6 +4815,8 @@
             checkNetworkStatus();
             fetchCars();
             setInterval(fetchCars, 150);
+            updateVisionBarStatus();
+            setInterval(updateVisionBarStatus, 5000);
 
             document.getElementById('carSelector').addEventListener('change', function() {
                 selectedCarId = this.value;

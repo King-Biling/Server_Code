@@ -125,6 +125,16 @@ vision_state = {
     "overlay_ts": 0,                    # 最近一次检测更新时间（用于判定新鲜度）
 }
 
+manual_bind_state = {
+    "active": False,
+    "cameras": [],
+    "current_index": 0,
+    "current_frame_b64": None,
+
+    "bound_so_far": {},
+    "finished": False,
+}
+
 # 低频快照节流状态：仅供 vision 模块的低频快照函数使用
 snapshot_lowfreq_state = {"last_ts": 0.0}
 
