@@ -58,6 +58,8 @@ reconstruct_state = {
     "guide_frequency": 20,  # Hz
     "guide_timeout": 0.3,   # 秒
     "target_distance": 5.0, # 5cm
+    "scan_state": {},       # 每车扫描状态: {car_id: {active, start_time, direction, tag_lock_count}}
+    "scan_manual_override": False,  # 手动扫描覆盖：True时由人工控制启停，Tag检测不自动停止
     "current_image": None,      # 当前显示的图像
     "current_image_car": None,  # 当前图像对应的小车
     "image_timestamp": 0,       # 图像时间戳
@@ -123,6 +125,16 @@ vision_state = {
     "overlay_error": (0.0, 0.0, 0.0),   # (error_x, error_y, error_yaw)
     "overlay_has_tag": False,
     "overlay_ts": 0,                    # 最近一次检测更新时间（用于判定新鲜度）
+}
+
+manual_bind_state = {
+    "active": False,
+    "cameras": [],
+    "current_index": 0,
+    "current_frame_b64": None,
+
+    "bound_so_far": {},
+    "finished": False,
 }
 
 # 低频快照节流状态：仅供 vision 模块的低频快照函数使用

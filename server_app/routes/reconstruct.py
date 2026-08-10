@@ -145,6 +145,45 @@ def separate_reconstruct():
     })
 
 
+@reconstruct_bp.route('/api/reconstruct/scan/start', methods=['POST'])
+def start_scan():
+    """手动启动横向扫描。需在制导阶段(assembling)且有待拼接车时调用。"""
+    with state.reconstruct_lock:
+        if state.reconstruct_state["phase"] != "assembling":
+            return jsonify({'success': False, 'error': '仅在拼接阶段可启动扫描'}), 400
+        waiting_car = state.reconstruct_state.get("waiting_car_id")
+        if not waiting_car:
+            return jsonify({'success': False, 'error': '当前无待拼接车辆'}), 400
+        controllers = state.reconstruct_state.get("guide_controllers", {})
+        ctrl = controllers.get(waiting_car)
+    if not ctrl:
+        return jsonify({'success': False, 'error': f'未找到 {waiting_car} 的制导控制器'}), 400
+    result = ctrl.start_scan_manual()
+    if result:
+        return jsonify({'success': True, 'message': f'{waiting_car} 横向扫描已启动', 'car_id': waiting_car})
+    else:
+        return jsonify({'success': False, 'error': '扫描已在运行或未启用'}), 400
+
+
+@reconstruct_bp.route('/api/reconstruct/scan/stop', methods=['POST'])
+def stop_scan():
+    """手动停止横向扫描。"""
+    with state.reconstruct_lock:
+        waiting_car = state.reconstruct_state.get("waiting_car_id")
+        controllers = state.reconstruct_state.get("guide_controllers", {})
+    stopped = False
+    for _cid, ctrl in controllers.items():
+        if ctrl.scan_active:
+            ctrl.stop_scan_manual()
+            stopped = True
+    if stopped:
+        return jsonify({'success': True, 'message': '横向扫描已停止'})
+    else:
+        with state.reconstruct_lock:
+            state.reconstruct_state["scan_manual_override"] = False
+        return jsonify({'success': True, 'message': '扫描未在运行，已复位手动模式'})
+
+
 @reconstruct_bp.route('/api/reconstruct/abort', methods=['POST'])
 def abort_reconstruct():
     """中止重构流程：广播 ABORT，恢复拓扑并复位状态。"""
@@ -183,7 +222,9 @@ def get_reconstruct_status():
             'current_error': state.reconstruct_state.get("current_error"),
             'current_error_car': state.reconstruct_state.get("current_error_car"),
             'current_has_tag': state.reconstruct_state.get("current_has_tag"),
-            'debug_logs': state.reconstruct_state["debug_logs"][-20:]  # 返回最近20条日志
+            'debug_logs': state.reconstruct_state["debug_logs"][-20:],  # 返回最近20条日志
+            'scan_state': dict(state.reconstruct_state.get("scan_state", {})),
+            'scan_manual_override': state.reconstruct_state.get("scan_manual_override", False),
         }
 
     # 当前应显示的视觉目标车：拼接阶段用 waiting_car_id，其它阶段用 monitor_car_id

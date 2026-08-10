@@ -88,6 +88,11 @@ class GuideController:
         self.last_tag_time = 0             # 最近一次“检测到 Tag”的时间
         self.reached_hold_count = 0        # 到达条件连续成立的帧数（去抖，防止单帧误判 DONE）
         self.guide_thread = None
+        self.scan_active = False           # 横向扫描是否正在运行
+        self.scan_start_time = 0           # 扫描启动时间
+        self.scan_direction = 1            # 扫描方向: +1 向右, -1 向左
+        self.scan_tag_lock_count = 0       # 扫描中连续检测到Tag的帧数
+        self.tag_ever_found = False        # 是否曾经检测到过Tag（一旦True永不回到扫描）
 
     def start_guidance(self):
         """开始制导（幂等：已激活则直接返回）。"""
@@ -101,6 +106,10 @@ class GuideController:
     def stop_guidance(self):
         """停止制导。"""
         self.active = False
+        self.scan_active = False
+        self.scan_tag_lock_count = 0
+        self.tag_ever_found = False
+        self._update_scan_state()
 
     def _guidance_loop(self):
         """制导循环：按 guide_frequency 周期下发速度或保活指令。"""
@@ -114,8 +123,20 @@ class GuideController:
                     continue
 
                 # 没有可用位姿时仍保持刷新，避免车端超时
+                # 未曾找到过Tag且超时5s才扫描；曾经找到过Tag则永不再扫描
                 if self.last_pose_error is None:
-                    self._send_guide_command(0, 0, 0, done=0)
+                    if self.last_has_tag and self.scan_active:
+                        self.scan_active = False
+                        self.scan_tag_lock_count = 0
+                        self._update_scan_state()
+                        self._send_guide_command(0, 0, 0, done=0)
+                    elif (not self.tag_ever_found) and (not self.last_has_tag) and (time.time() - self.last_tag_time > 5.0):
+                        scan_vy = self._calculate_scan_velocity()
+                        self._send_guide_command(0, scan_vy, 0, done=0)
+                        if abs(scan_vy) > 1e-6 and self.scan_active:
+                            print(f"横向扫描(无位姿) ({self.car_id}): vy={scan_vy:+.3f} m/s")
+                    else:
+                        self._send_guide_command(0, 0, 0, done=0)
                     time.sleep(guide_interval)
                     continue
 
@@ -137,16 +158,159 @@ class GuideController:
                 print(f" 制导循环错误 ({self.car_id}): {e}")
                 time.sleep(guide_interval)
 
+    def start_scan_manual(self):
+        """手动启动横向扫描（由HTTP接口调用）。"""
+        if not config.SCAN_ENABLED:
+            return False
+        with state.reconstruct_lock:
+            manual_override = state.reconstruct_state.get("scan_manual_override", False)
+        if manual_override and self.scan_active:
+            return False
+        now = time.time()
+        self.scan_active = True
+        self.scan_start_time = now
+        self.scan_direction = 1
+        self.scan_tag_lock_count = 0
+        with state.reconstruct_lock:
+            state.reconstruct_state["scan_manual_override"] = True
+        self._update_scan_state()
+        return True
+
+    def stop_scan_manual(self):
+        """手动停止横向扫描（由HTTP接口调用）。"""
+        self.scan_active = False
+        self.scan_tag_lock_count = 0
+        with state.reconstruct_lock:
+            state.reconstruct_state["scan_manual_override"] = False
+        self._update_scan_state()
+        return True
+
+    def _calculate_scan_velocity(self):
+        """当制导阶段持续无Tag时，生成三角波横向扫描速度以搜索标签。
+        
+        扫描逻辑：
+        - 手动模式（scan_manual_override=True）：仅由人工启停控制，Tag检测不自动停止扫描
+        - 自动模式（scan_manual_override=False）：无Tag自动扫描，连续锁定Tag后自动停止
+        - 生成三角波横向速度，周期性左右移动
+        - 扫描超时后放弃扫描（保持停车等待）
+        """
+        if not config.SCAN_ENABLED:
+            return 0.0
+
+        now = time.time()
+
+        with state.reconstruct_lock:
+            manual_override = state.reconstruct_state.get("scan_manual_override", False)
+
+        if manual_override:
+            if not self.scan_active:
+                self.scan_active = True
+                self.scan_start_time = now
+                self.scan_direction = 1
+                self._update_scan_state()
+
+            elapsed = now - self.scan_start_time
+            if elapsed > config.SCAN_MAX_DURATION:
+                self.scan_active = False
+                with state.reconstruct_lock:
+                    state.reconstruct_state["scan_manual_override"] = False
+                self._update_scan_state()
+                return 0.0
+
+            half_period = config.SCAN_HALF_PERIOD
+            phase = elapsed % (2 * half_period)
+            if phase < half_period:
+                self.scan_direction = 1
+            else:
+                self.scan_direction = -1
+
+            scan_vy = self.scan_direction * config.SCAN_SPEED
+            return scan_vy
+
+        # 自动模式：如果已检测到Tag，累计锁定帧数
+        if self.last_has_tag:
+            self.scan_tag_lock_count += 1
+            if self.scan_tag_lock_count >= config.SCAN_TAG_LOCK_FRAMES:
+                if self.scan_active:
+                    self.scan_active = False
+                    self._update_scan_state()
+                return 0.0
+        else:
+            self.scan_tag_lock_count = 0
+
+        if self.last_has_tag and self.last_pose_error is not None:
+            if self.scan_active:
+                self.scan_active = False
+                self._update_scan_state()
+            return 0.0
+
+        if not self.scan_active:
+            self.scan_active = True
+            self.scan_start_time = now
+            self.scan_direction = 1
+            self.scan_tag_lock_count = 0
+            self._update_scan_state()
+
+        elapsed = now - self.scan_start_time
+        if elapsed > config.SCAN_MAX_DURATION:
+            self.scan_active = False
+            self._update_scan_state()
+            return 0.0
+
+        half_period = config.SCAN_HALF_PERIOD
+        phase = elapsed % (2 * half_period)
+        if phase < half_period:
+            self.scan_direction = 1
+        else:
+            self.scan_direction = -1
+
+        scan_vy = self.scan_direction * config.SCAN_SPEED
+        return scan_vy
+
+    def _update_scan_state(self):
+        """更新全局扫描状态供监控显示。"""
+        try:
+            with state.reconstruct_lock:
+                state.reconstruct_state.setdefault("scan_state", {})[self.car_id] = {
+                    "active": self.scan_active,
+                    "start_time": self.scan_start_time,
+                    "direction": self.scan_direction,
+                    "tag_lock_count": self.scan_tag_lock_count,
+                }
+        except Exception:
+            pass
+
     def _calculate_guide_velocity(self):
         """根据最新位姿误差计算制导速度，返回 (vx, vy, vz, done)。"""
         if self.last_pose_error is None:
             self.reached_hold_count = 0
             return 0, 0, 0, 0
 
-        # 没有实时视觉（>0.5s 无 Tag）时，绝不判定到达，只保活并停车，
-        # 等待视觉重新锁定。此前的 bug 是无 Tag 时用 error_x=0 误判到达导致假 DONE。
-        if (not self.last_has_tag) or (time.time() - self.last_tag_time > 0.5):
+        # 手动扫描模式：即使有Tag也继续扫描，由人工决定何时停止
+        with state.reconstruct_lock:
+            manual_override = state.reconstruct_state.get("scan_manual_override", False)
+        if manual_override and self.scan_active:
+            scan_vy = self._calculate_scan_velocity()
+            if abs(scan_vy) > 1e-6:
+                print(f"横向扫描(手动) ({self.car_id}): vy={scan_vy:+.3f} m/s")
+                return 0.0, scan_vy, 0.0, 0
+            return 0.0, 0.0, 0.0, 0
+
+        # 有Tag时立即停止扫描，切换到正常P控制
+        if self.last_has_tag and self.scan_active:
+            self.scan_active = False
+            self.scan_tag_lock_count = 0
+            self._update_scan_state()
+
+        # 未曾找到过Tag 且 当前帧无Tag 且 超过5s没看到Tag时才进入扫描
+        # 一旦曾经找到过Tag（tag_ever_found=True），永不再扫描，直接走P控制或停车
+        if (not self.tag_ever_found) and (not self.last_has_tag) and (time.time() - self.last_tag_time > 5.0):
             self.reached_hold_count = 0
+            scan_vy = self._calculate_scan_velocity()
+            if abs(scan_vy) > 1e-6:
+                if self.scan_active:
+                    print(f"横向扫描 ({self.car_id}): vy={scan_vy:+.3f} m/s")
+                return 0.0, scan_vy, 0.0, 0
             return 0.0, 0.0, 0.0, 0
 
         error_x, error_y, _ = self.last_pose_error
@@ -218,7 +382,8 @@ class GuideController:
                         state.reconstruct_state["subphase"] = "WAIT_STEP_OK"
                     # 记录最新制导速度，供监控画面实时叠加显示
                     state.reconstruct_state.setdefault("guide_velocity", {})[self.car_id] = {
-                        "vx": vx, "vy": vy, "vz": vz, "done": done, "ts": time.time()
+                        "vx": vx, "vy": vy, "vz": vz, "done": done, "ts": time.time(),
+                        "scan_active": self.scan_active,
                     }
             except Exception:
                 pass
@@ -235,4 +400,5 @@ class GuideController:
         if has_tag:
             self.last_tag_time = now
             self.last_vision_time = now
+            self.tag_ever_found = True
         # 注意：无 Tag 时不刷新 last_vision_time，让“视觉超时”保护能够真正生效

@@ -334,6 +334,17 @@ def draw_vision_overlay(frame, car_id, error_x, error_y, error_yaw):
                 cv2.putText(frame, vel_text, (18, vel_bottom_y - 2), label_font, vel_scale, vel_color, vel_thickness)
         except Exception:
             pass
+
+        # 横向扫描状态指示
+        try:
+            with state.reconstruct_lock:
+                scan_st = state.reconstruct_state.get("scan_state", {}).get(car_id)
+            if scan_st and scan_st.get("active", False):
+                scan_text = "SCANNING >>>" if scan_st.get("direction", 1) > 0 else "<<< SCANNING"
+                scan_color = (0, 255, 255)  # yellow
+                cv2.putText(frame, scan_text, (10, 55), cv2.FONT_HERSHEY_SIMPLEX, 0.7, scan_color, 2)
+        except Exception:
+            pass
     except Exception:
         pass
 

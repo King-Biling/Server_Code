@@ -17,7 +17,8 @@ CONFIG = {
     "FRAME_HEIGHT": 480,
     # 检测下采样倍率：在 1/DETECT_SCALE 分辨率上跑 detectMarkers，角点再放大回全分辨率并 subpix 精修。
     # 2 = 在 320x240 上检测(推荐，卡顿明显缓解且精度基本无损)；1 = 全分辨率检测(最慢)；3 = 更快但远距离小标签可能漏检。
-    "DETECT_SCALE": 2
+    "DETECT_SCALE": 2,
+    "SKIP_CAMERA_INDICES": [],#修改这个列表即可控制跳过哪些摄像头索引，如 [0, 1] 跳过索引 0 和 1，[] 不跳过任何摄像头。
 }
 # ==========================================
 
@@ -44,18 +45,20 @@ class DeviceBinder:
                     self.template_dict[channel_name] = tmpl
         print(f" [Binder] 成功加载 {len(self.template_dict)} 个频道模板: {list(self.template_dict.keys())}")
 
-    def _open_camera(self, index):
+    def _open_camera(self, index, verbose=True):
         """安全打开相机，强制 MJPG 与分辨率限制"""
         cap = cv2.VideoCapture(index, cv2.CAP_DSHOW)
         if cap.isOpened():
             cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.config["FRAME_WIDTH"])
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.config["FRAME_HEIGHT"])
-            actual_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
-            actual_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
-            print(f" [Binder] 摄像头索引 {index} 打开成功，分辨率 {actual_w}x{actual_h}")
+            if verbose:
+                actual_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
+                actual_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
+                print(f" [Binder] 摄像头索引 {index} 打开成功，分辨率 {actual_w}x{actual_h}")
         else:
-            print(f" [Binder] 摄像头索引 {index} 打开失败")
+            if verbose:
+                print(f" [Binder] 摄像头索引 {index} 打开失败")
         return cap
 
     def _match_channel(self, frame):
@@ -146,49 +149,28 @@ class DeviceBinder:
         return bound_cameras
 
     def list_available_cameras(self, max_cameras=6):
-        """枚举系统中可用的摄像头索引，返回每路摄像头的索引、分辨率、缩略图(base64)和OSD频道匹配结果。"""
-        import base64
+        """枚举系统中可用的摄像头索引，返回每路摄像头的索引和分辨率。跳过 SKIP_CAMERA_INDICES 中的索引。"""
+        skip_indices = set(self.config.get("SKIP_CAMERA_INDICES", []))
         available = []
         for index in range(max_cameras):
-            cap = self._open_camera(index)
+            if index in skip_indices:
+                continue
+            cap = self._open_camera(index, verbose=False)
             if cap.isOpened():
                 w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
                 h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
-                thumbnail_b64 = None
-                detected_channel = None
-                detected_score = 0.0
-                suggested_car = None
-                try:
-                    for _ in range(5):
-                        cap.grab()
-                    ret, frame = cap.read()
-                    if ret and frame is not None:
-                        small = cv2.resize(frame, (160, 120))
-                        ok, buf = cv2.imencode('.jpg', small, [int(cv2.IMWRITE_JPEG_QUALITY), 60])
-                        if ok:
-                            thumbnail_b64 = base64.b64encode(buf.tobytes()).decode('utf-8')
-                        if self.template_dict:
-                            ch, sc = self._match_channel(frame)
-                            if ch:
-                                detected_channel = ch
-                                detected_score = round(sc, 3)
-                                if ch in self.config["CHANNEL_MAP"]:
-                                    suggested_car = self.config["CHANNEL_MAP"][ch]
-                except Exception:
-                    pass
                 available.append({
                     "index": index,
                     "width": w,
                     "height": h,
-                    "thumbnail": thumbnail_b64,
-                    "detected_channel": detected_channel,
-                    "detected_score": detected_score,
-                    "suggested_car": suggested_car,
                 })
                 cap.release()
             else:
                 cap.release()
-            time.sleep(0.1)
+        if available:
+            print(f" [Binder] 发现 {len(available)} 个可用摄像头: {[c['index'] for c in available]}")
+        else:
+            print(f" [Binder] 未发现可用摄像头")
         return available
 
     def manual_bind(self, binding_map):

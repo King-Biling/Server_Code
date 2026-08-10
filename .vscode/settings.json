@@ -2,5 +2,10 @@
     "python-envs.defaultEnvManager": "ms-python.python:system",
     "python-envs.pythonProjects": [],
     "files.encoding": "utf8",
-    "files.autoGuessEncoding": false
+    "files.autoGuessEncoding": false,
+    "idf.portWin": "COM3",
+    "idf.openOcdConfigs": [
+        "board/esp32s3-builtin.cfg"
+    ],
+    "idf.flashType": "UART"
 }
