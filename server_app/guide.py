@@ -318,7 +318,7 @@ class GuideController:
 
         # 检查是否到达目标：必须在“确有 Tag”的前提下，且连续多帧稳定成立才判定 DONE，
         # 防止单帧抖动误触发。error_x 是到 Tag 的纵向距离(cm)，需大于 0 才是有效锁定。
-        if (0.0 < error_x < 20.0 and abs(error_y) < 2.0 and abs(yaw_error_deg) < 2.0):
+        if (0.0 < error_x < 34.0 and abs(error_y) < 2.0 and abs(yaw_error_deg) < 2.0):
             self.reached_hold_count += 1
             if self.reached_hold_count >= 3:
                 return 0.0, 0.0, 0.0, 1
