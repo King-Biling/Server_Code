@@ -226,6 +226,17 @@ class PoseEstimator:
             [ half_s, -half_s, 0], [-half_s, -half_s, 0]
         ], dtype=np.float32)
 
+        # ROI 粗定位器（移植自 QRCodeReader 的轮廓树检测，失败时回退整图）
+        from tag_roi_locator import TagRoiLocator
+        roi_cfg = self.config.get("ROI_LOCATOR", {})
+        self.roi_locator = TagRoiLocator(
+            min_level=roi_cfg.get("min_level", 2),
+            area_ratio_min=roi_cfg.get("area_ratio_min", 1.5),
+            area_ratio_max=roi_cfg.get("area_ratio_max", 8.0),
+            pad_ratio=roi_cfg.get("pad_ratio", 0.2),
+            min_contour_area=roi_cfg.get("min_contour_area", 100),
+        )
+
     def load_params_for_car(self, car_id):
         """加载并缓存特定小车的相机内参"""
         if car_id in self.camera_params_cache:
@@ -263,17 +274,23 @@ class PoseEstimator:
 
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
+        # === ROI 粗定位（移植自 QRCodeReader 的轮廓树检测，失败回退整图）===
+        rx, ry, rw, rh = self.roi_locator.estimate_roi(gray)
+        roi_gray = gray[ry:ry + rh, rx:rx + rw]
+
         scale = self.detect_scale
         if scale > 1:
-            small = cv2.resize(gray, None, fx=1.0 / scale, fy=1.0 / scale,
+            small = cv2.resize(roi_gray, None, fx=1.0 / scale, fy=1.0 / scale,
                                interpolation=cv2.INTER_AREA)
         else:
-            small = gray
+            small = roi_gray
         corners, ids, _ = self.detector.detectMarkers(small)
 
         if ids is not None and len(ids) > 0:
             if scale > 1:
                 corners = [c * float(scale) for c in corners]
+            # 补偿 ROI 偏移，把角点还原到全图坐标系（solvePnP 仍用原内参）
+            corners = [c + np.array([rx, ry], dtype=np.float32) for c in corners]
 
             tag_corners = corners[0][0].astype(np.float32)
 
